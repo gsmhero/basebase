@@ -35,6 +35,7 @@ jobs:
           for k in SITE_URL DB_HOST DB_NAME DB_USER DB_PASS SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM; do
             printf '%s=%s\n' "$k" "${!k}" >> .env
           done
+          echo "APP_DEBUG=1" >> .env
 
       - name: Deploy via SSH (rsync)
         if: ${{ github.event.inputs.method != 'ftp' }}
@@ -45,7 +46,8 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq sshpass rsync
           sshpass -e rsync -az --delete \
-            --exclude '.git' --exclude '.github' --exclude '.gitignore' --exclude 'database' \
+            --exclude '.git' --exclude '.github' --exclude '.gitignore' \
+            --filter='P public/uploads/*' --filter='P storage/*.log' \
             -e "ssh -o StrictHostKeyChecking=accept-new -p $SSH_PORT" \
             ./ "$TARGET"
 
@@ -60,7 +62,6 @@ jobs:
           exclude: |
             **/.git*
             **/.git*/**
-            database/**
 
       - name: Health check
         env:
