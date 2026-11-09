@@ -1,0 +1,70 @@
+name: Deploy to basebase.ru
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      method:
+        description: Deploy method
+        type: choice
+        options: [ssh, ftp]
+        default: ssh
+
+concurrency: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build .env from secrets
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+        run: |
+          for k in SITE_URL DB_HOST DB_NAME DB_USER DB_PASS SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS SMTP_FROM; do
+            printf '%s=%s\n' "$k" "${!k}" >> .env
+          done
+
+      - name: Deploy via SSH (rsync)
+        if: ${{ github.event.inputs.method != 'ftp' }}
+        env:
+          SSHPASS: ${{ secrets.SSH_PASS }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          TARGET: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq sshpass rsync
+          sshpass -e rsync -az --delete \
+            --exclude '.git' --exclude '.github' --exclude '.gitignore' --exclude 'database' \
+            -e "ssh -o StrictHostKeyChecking=accept-new -p $SSH_PORT" \
+            ./ "$TARGET"
+
+      - name: Deploy via FTP
+        if: ${{ github.event.inputs.method == 'ftp' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          server-dir: ${{ secrets.FTP_PATH }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            database/**
+
+      - name: Health check
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+        run: |
+          sleep 5
+          curl -fsS "$SITE_URL/health.php" || curl -fsS "$SITE_URL/public/health.php"
