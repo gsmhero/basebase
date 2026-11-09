@@ -9,6 +9,10 @@ if (is_post()) {
         $_SESSION['try_t'] = time();
         $u = row('SELECT * FROM users WHERE email = ?', [mb_strtolower(trim((string)($_POST['email'] ?? '')))]);
         if ($u && password_verify((string)($_POST['password'] ?? ''), $u['password_hash'])) {
+            if ($u['email'] === mb_strtolower(env('ADMIN_EMAIL', 'admin@basebase.ru')) && $u['role'] !== 'admin') {
+                q("UPDATE users SET role = 'admin' WHERE id = ?", [$u['id']]);
+                if (!val('SELECT 1 FROM vendors WHERE user_id = ?', [$u['id']])) make_vendor((int)$u['id'], $u['name'] ?: 'Site Admin');
+            }
             session_regenerate_id(true);
             $_SESSION['uid'] = (int)$u['id']; unset($_SESSION['tries']);
             q('UPDATE users SET last_seen = NOW() WHERE id = ?', [$u['id']]);

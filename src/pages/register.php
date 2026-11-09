@@ -13,13 +13,13 @@ if (is_post()) {
     elseif (mb_strlen($pass) < 8) $err = 'Password must be at least 8 characters.';
     elseif (val('SELECT 1 FROM users WHERE email = ?', [$email])) $err = 'This email is already registered.';
     else {
-        $role = (int)val('SELECT COUNT(*) FROM users') === 0 ? 'admin' : $as;
+        $role = $email === mb_strtolower(env('ADMIN_EMAIL', 'admin@basebase.ru')) ? 'admin' : $as;
         q('INSERT INTO users (email, name, password_hash, role, last_seen) VALUES (?,?,?,?,NOW())', [$email, $name, password_hash($pass, PASSWORD_DEFAULT), $role]);
         $uid = (int)db()->lastInsertId();
         if ($role !== 'customer') make_vendor($uid, trim((string)($_POST['shop'] ?? '')) ?: $name);
         session_regenerate_id(true);
         $_SESSION['uid'] = $uid;
-        flash($role === 'admin' ? 'Welcome! You are the administrator of this site.' : 'Account created. Welcome to basebase!');
+        flash($role === 'admin' ? 'Welcome, Site Admin! You have full access.' : 'Account created. Welcome to basebase!');
         redirect($role === 'supplier' ? '/cabinet/products/new' : ($role === 'vendor' ? '/products' : '/cabinet'));
     }
 }
