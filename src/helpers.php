@@ -113,6 +113,7 @@ function save_upload(array $f): ?string {
     if (!$ext) return null;
     $dir = ROOT . '/public/uploads';
     if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    if (!is_file("$dir/.htaccess")) @file_put_contents("$dir/.htaccess", "<FilesMatch \"\\.(php|phtml|php\\d|phar|pl|cgi|sh)\$\">\n    Require all denied\n</FilesMatch>\nOptions -Indexes -ExecCGI\n");
     $name = bin2hex(random_bytes(8)) . '.' . $ext;
     return move_uploaded_file($f['tmp_name'], "$dir/$name") ? "/uploads/$name" : null;
 }
