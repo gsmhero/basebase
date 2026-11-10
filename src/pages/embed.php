@@ -88,20 +88,23 @@ $posted = fn($k, $d = '') => e($_POST[$k] ?? $d);
 *{box-sizing:border-box}
 body{margin:0;background:transparent;color:#15171e;font:400 14px/1.45 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
 .w{background:#fff;border:1px solid #e8e5dc;border-radius:14px;overflow:hidden;max-width:720px}
-.it{display:grid;grid-template-columns:72px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid #f0ede5}
-.th{width:72px;height:72px;border-radius:10px;overflow:hidden;background:#f0ede5;display:grid;place-items:center;font:700 26px system-ui;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:12px}
+.it{display:flex;flex-direction:column;border:1px solid #e8e5dc;border-radius:12px;overflow:hidden;background:#fff}
+.th{display:grid;place-items:center;aspect-ratio:1/1;background:#f0ede5;font:700 44px system-ui;color:#fff;overflow:hidden}
 .th img{width:100%;height:100%;object-fit:cover}
+.bd{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;flex:1}
+.bd b{font-size:14px;line-height:1.3}
 .it b{display:block}.m{color:#6c707c;font-size:12.5px}
 .pr{font-weight:700;white-space:nowrap}
 select,input:not([type=radio]){font:inherit;border:1px solid #e0dcd0;border-radius:8px;padding:7px 9px;background:#fff;color:#15171e;width:100%}
 .q{width:64px!important;text-align:center}
-.ctl{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.ctl select{width:auto;max-width:160px}
+.ctl{display:flex;gap:6px;margin-top:auto;padding-top:6px;flex-wrap:wrap;align-items:center}.ctl select{width:auto;max-width:160px}
 .bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;flex-wrap:wrap}
 .btn{border:0;border-radius:99px;background:#b8893a;color:#fff;font:700 14px system-ui;padding:11px 22px;cursor:pointer}
 .btn:hover{background:#8a6420}.btn[disabled]{opacity:.45;cursor:default}
 .tot{font:700 18px system-ui}
 #co{padding:4px 14px 14px;border-top:1px solid #f0ede5}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.g2{grid-template-columns:1fr}.it{grid-template-columns:56px 1fr}.th{width:56px;height:56px}.pr{grid-column:2}}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.g2{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr);gap:8px;padding:8px}}
 label.f{display:block;margin:10px 0 0}label.f span{display:block;font-size:12px;color:#6c707c;margin-bottom:3px}
 .rd{display:flex;align-items:center;gap:8px;margin:6px 0}
 .err{background:#fbe1e1;color:#8c2323;padding:10px 14px;font-weight:600}
@@ -124,17 +127,19 @@ label.f{display:block;margin:10px 0 0}label.f span{display:block;font-size:12px;
   <form method="post" id="f" autocomplete="on">
     <input type="hidden" name="tok" value="<?= e($tok) ?>"><input type="hidden" name="shop" value="<?= $shop ?>"><input type="hidden" name="grp" value="<?= e($grp) ?>">
     <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="grid">
     <?php foreach ($items as $it): $p = $it['p']; $pid = (int)$p['id']; $vars = json_decode($p['variants'] ?? '[]', true) ?: []; $qv = $_POST['qty'][$pid] ?? $it['qty']; ?>
     <div class="it" data-price="<?= eff_price($p) ?>">
       <a class="th" href="<?= e($host . '/product/' . $pid . ($shop ? '?shop=' . $shop : '')) ?>" target="_blank" rel="noopener" style="<?= $p['image'] ? '' : 'background:hsl(' . (($pid * 47) % 360) . ' 45% 55%)' ?>"><?= $p['image'] ? '<img src="' . e($host . $p['image']) . '" alt="' . e($p['title']) . '">' : e(mb_strtoupper(mb_substr(trim($p['title']), 0, 1))) ?></a>
-      <div><b><?= e($p['title']) ?></b>
+      <div class="bd"><b><?= e($p['title']) ?></b>
+        <div class="pr"><?= money(eff_price($p) * ($fixed ? $it['qty'] : 1)) ?></div>
         <div class="ctl">
           <?php if ($vars): ?><select name="var[<?= $pid ?>]" class="v"><?php foreach ($vars as $v): if ((int)$v['stock'] < 1) continue; ?><option value="<?= e($v['name']) ?>" data-price="<?= e(eff_price($p, $v['name'])) ?>" <?= ($_POST['var'][$pid] ?? '') === $v['name'] ? 'selected' : '' ?>><?= e($v['name']) ?></option><?php endforeach; ?></select><?php endif; ?>
           <?php if ($fixed): ?><span class="m">× <?= (int)$it['qty'] ?></span><?php else: ?><input class="q" type="number" name="qty[<?= $pid ?>]" min="0" max="999" value="<?= (int)$qv ?>" aria-label="Quantity"><?php endif; ?>
         </div></div>
-      <div class="pr"><?= money(eff_price($p) * ($fixed ? $it['qty'] : 1)) ?></div>
     </div>
     <?php endforeach; ?>
+    </div>
     <div class="bar"><span class="tot" id="tot"></span><button type="button" class="btn" id="buy">Buy now</button></div>
     <div id="co" <?= $err ? '' : 'hidden' ?>>
       <div class="g2"><label class="f"><span>Full name</span><input name="cname" required value="<?= $posted('cname') ?>" autocomplete="name"></label>
