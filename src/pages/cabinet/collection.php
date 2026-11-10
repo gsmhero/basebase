@@ -32,9 +32,15 @@ $items = rows('SELECT p.*, ci.grp, c.name cat_name FROM collection_items ci JOIN
 $sets = rows('SELECT s.*, (SELECT COUNT(*) FROM set_items WHERE set_id = s.id) n, ' . SET_SUM_SQL . ' AS sum FROM product_sets s WHERE s.vendor_id = ? ORDER BY s.id DESC', [$vid]);
 $groups = []; foreach ($items as $i) if ($i['grp'] !== '') $groups[$i['grp']][] = $i;
 
-function share_box(string $url, string $label): string {
+/** Code to paste into any blog/site: an iframe that shows the products and lets guests buy without leaving. */
+function embed_code(string $src): string {
+    global $host;
+    return '<iframe src="' . $src . '" width="100%" height="260" style="border:0;max-width:720px" loading="lazy" title="basebase.ru"></iframe><script async src="' . $host . '/assets/embed.js"></script>';
+}
+function share_box(string $url, string $label, string $embed = ''): string {
     $code = '<a href="' . $url . '">' . $label . '</a>';
-    return '<div class="share-grid"><button type="button" class="btn sm" data-copy="' . e($url) . '">' . ico('link', 14) . ' Link URL</button><button type="button" class="btn sm" data-copy="' . e($code) . '">' . ico('code', 14) . ' Code</button></div>';
+    return '<div class="share-grid"><button type="button" class="btn sm" data-copy="' . e($url) . '">' . ico('link', 14) . ' Link URL</button><button type="button" class="btn sm" data-copy="' . e($code) . '">' . ico('code', 14) . ' Code</button>'
+        . ($embed ? '<button type="button" class="btn sm gold" style="grid-column:1/3" title="Paste into any blog or site: buyers purchase without leaving it" data-copy="' . e(embed_code($embed)) . '">' . ico('cart', 14) . ' Embed shop block</button>' : '') . '</div>';
 }
 
 layout('Product collection', function () use ($items, $sets, $groups, $tab, $host, $u, $vid) { ?>
@@ -47,7 +53,7 @@ layout('Product collection', function () use ($items, $sets, $groups, $tab, $hos
       <a class="pcard-title" href="/product/<?= $p['id'] ?>"><?= e($p['title']) ?></a>
       <div class="row" style="flex:none;justify-content:space-between;gap:6px"><div class="price"><?= money(eff_price($p)) ?></div><span class="badge ok" style="flex:none">+<?= money(reseller_earn($p)) ?></span></div>
       <form method="post" class="share-box" style="margin-top:6px"><?= csrf_field() ?><input type="hidden" name="do" value="group"><input type="hidden" name="id" value="<?= $p['id'] ?>"><input name="grp" value="<?= e($p['grp']) ?>" placeholder="Group" list="grp-list" maxlength="80"><button class="btn sm">Set</button></form>
-      <div style="margin-top:8px"><?= share_box($url, $p['title']) ?></div>
+      <div style="margin-top:8px"><?= share_box($url, $p['title'], $host . '/embed/product/' . $p['id'] . '?shop=' . $vid) ?></div>
       <form method="post" style="margin-top:8px"><?= csrf_field() ?><input type="hidden" name="do" value="remove"><input type="hidden" name="id" value="<?= $p['id'] ?>"><button class="btn sm danger block"><?= ico('trash', 14) ?> Remove</button></form>
     </div></article><?php endforeach; ?></div>
     <datalist id="grp-list"><?php foreach (array_keys($groups) as $g): ?><option value="<?= e($g) ?>"><?php endforeach; ?></datalist>
@@ -57,7 +63,7 @@ layout('Product collection', function () use ($items, $sets, $groups, $tab, $hos
   <div class="dash-grid">
     <section class="card span-7"><div class="card-h"><h3>My sets</h3></div>
       <?php foreach ($sets as $s): $url = $host . '/set/' . $s['id']; ?><div class="row" style="flex-wrap:nowrap;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><a class="link" href="/set/<?= $s['id'] ?>"><b><?= e($s['title']) ?></b></a><div class="muted sm"><?= $s['n'] ?> items · <?= money($s['sum']) ?></div></div>
-        <div style="flex:none"><?= share_box($url, $s['title']) ?></div>
+        <div style="flex:none"><?= share_box($url, $s['title'], $host . '/embed/set/' . $s['id']) ?></div>
         <form method="post" data-confirm="Delete this set?" style="flex:none"><?= csrf_field() ?><input type="hidden" name="do" value="set-delete"><input type="hidden" name="id" value="<?= $s['id'] ?>"><button class="icon-btn"><?= ico('trash', 18) ?></button></form></div><?php endforeach; ?>
       <?php if (!$sets): ?><p class="muted">No sets yet. Create the first one →</p><?php endif; ?></section>
     <form method="post" class="card span-5"><?= csrf_field() ?><input type="hidden" name="do" value="set-create"><h3>New set</h3>
@@ -68,7 +74,7 @@ layout('Product collection', function () use ($items, $sets, $groups, $tab, $hos
 
 <?php else: ?>
   <?php if ($groups): foreach ($groups as $g => $list): $url = $host . '/shop/' . $u['slug'] . '?group=' . urlencode($g); ?>
-    <section class="card"><div class="card-h"><h3><?= e($g) ?> <span class="muted sm">· <?= count($list) ?></span></h3><?= share_box($url, $g) ?></div>
+    <section class="card"><div class="card-h"><h3><?= e($g) ?> <span class="muted sm">· <?= count($list) ?></span></h3><?= share_box($url, $g, $host . '/embed/group/' . $vid . '?grp=' . urlencode($g)) ?></div>
       <div class="row" style="gap:10px"><?php foreach ($list as $p): ?><a href="/product/<?= $p['id'] ?>" class="owner" style="flex:none;min-width:0;max-width:260px"><span style="width:44px;height:44px;border-radius:8px;overflow:hidden;flex:none"><?= pimg($p) ?></span><span style="min-width:0"><b class="sm" style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><?= e($p['title']) ?></b><span class="muted sm"><?= money(eff_price($p)) ?></span></span></a><?php endforeach; ?></div></section>
   <?php endforeach; else: ?><div class="card empty"><h2>No groups yet</h2><p>On the Products tab, type a group name under any product to start grouping.</p></div><?php endif; ?>
 <?php endif; ?>

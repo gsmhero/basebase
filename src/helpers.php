@@ -371,3 +371,51 @@ function wished(int $pid): bool {
     }
     return isset($s[$pid]);
 }
+
+/* ---------- orders ---------- */
+/**
+ * Creates an order from prepared lines [pid, qty, variant, unit, shop_id, title].
+ * Re-checks stock, applies the margin split, notifies sellers. Throws RuntimeException on stock/availability problems.
+ */
+function place_order(int $customerId, array $lines, array $f, string $pay): int {
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $total = 0.0; $ready = [];
+        foreach ($lines as $l) {
+            $p = row('SELECT * FROM products WHERE id = ? FOR UPDATE', [$l['pid']]);
+            if (!$p || $p['status'] !== 'active') throw new RuntimeException('“' . $l['title'] . '” is no longer available.');
+            $variants = json_decode($p['variants'] ?? '[]', true) ?: [];
+            if ($variants) {
+                $ok = false;
+                foreach ($variants as &$v) if ($v['name'] === $l['variant']) { if ((int)$v['stock'] < $l['qty']) throw new RuntimeException('Not enough stock for “' . $l['title'] . '”.'); $v['stock'] = (int)$v['stock'] - $l['qty']; $ok = true; }
+                unset($v);
+                if (!$ok) throw new RuntimeException('Option no longer available for “' . $l['title'] . '”.');
+                q('UPDATE products SET variants = ?, stock = ? WHERE id = ?', [json_encode($variants, JSON_UNESCAPED_UNICODE), array_sum(array_column($variants, 'stock')), $p['id']]);
+            } else {
+                if ((int)$p['stock'] < $l['qty']) throw new RuntimeException('Not enough stock for “' . $l['title'] . '”.');
+                q('UPDATE products SET stock = stock - ? WHERE id = ?', [$l['qty'], $p['id']]);
+            }
+            $total += $l['unit'] * $l['qty']; $ready[] = [$l, $p];
+        }
+        q('INSERT INTO orders (customer_id, total, status, name, phone, address, delivery_method, payment_method, payment_status, notes) VALUES (?,?,?,?,?,?,?,?,?,?)',
+          [$customerId, $total, 'new', $f['name'], $f['phone'], $f['address'], $f['delivery'], $pay, $pay === 'test' ? 'paid' : 'unpaid', $f['notes']]);
+        $oid = (int)$pdo->lastInsertId();
+        $notify = [];
+        foreach ($ready as [$l, $p]) {
+            $reseller = (int)$l['shop_id'];
+            if ($reseller) {
+                $ru = (int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller]);
+                if (!$ru || $ru === $customerId || $reseller === (int)$p['vendor_id']) $reseller = 0;
+            }
+            [$fee, $rfee] = item_split($p, (float)$l['unit'], (int)$l['qty'], (bool)$reseller);
+            q('INSERT INTO order_items (order_id, product_id, vendor_id, qty, price, commission, fulfillment, item_status, reseller_id, reseller_fee, title, variant) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+              [$oid, $p['id'], $p['vendor_id'], $l['qty'], $l['unit'], $fee, $p['is_dropship'] ? 'dropship' : 'vendor', 'pending', $reseller ?: null, $rfee, $p['title'], $l['variant']]);
+            $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$p['vendor_id']])][] = $p['title'];
+            if ($reseller) $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller])][] = $p['title'];
+        }
+        $pdo->commit();
+    } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+    foreach ($notify as $uid => $titles) notify($uid, 'New order BB-' . (1000 + $oid) . ': ' . count($titles) . ' item(s)', '/cabinet/orders/' . $oid);
+    return $oid;
+}

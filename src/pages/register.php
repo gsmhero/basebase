@@ -11,11 +11,16 @@ if (is_post()) {
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $err = 'Enter a valid email.';
     elseif ($name === '') $err = 'Enter your name.';
     elseif (mb_strlen($pass) < 8) $err = 'Password must be at least 8 characters.';
-    elseif (val('SELECT 1 FROM users WHERE email = ?', [$email])) $err = 'This email is already registered.';
+    elseif (($ex = row('SELECT id, is_guest FROM users WHERE email = ?', [$email])) && !$ex['is_guest']) $err = 'This email is already registered.';
     else {
         $role = $email === mb_strtolower(env('ADMIN_EMAIL', 'admin@basebase.ru')) ? 'admin' : $as;
-        q('INSERT INTO users (email, name, password_hash, role, last_seen) VALUES (?,?,?,?,NOW())', [$email, $name, password_hash($pass, PASSWORD_DEFAULT), $role]);
-        $uid = (int)db()->lastInsertId();
+        if ($ex) { // claim the account created by a guest checkout: keeps the orders placed earlier
+            $uid = (int)$ex['id'];
+            q('UPDATE users SET name = ?, password_hash = ?, role = ?, is_guest = 0, last_seen = NOW() WHERE id = ?', [$name, password_hash($pass, PASSWORD_DEFAULT), $role, $uid]);
+        } else {
+            q('INSERT INTO users (email, name, password_hash, role, last_seen) VALUES (?,?,?,?,NOW())', [$email, $name, password_hash($pass, PASSWORD_DEFAULT), $role]);
+            $uid = (int)db()->lastInsertId();
+        }
         if ($role !== 'customer') make_vendor($uid, trim((string)($_POST['shop'] ?? '')) ?: $name);
         session_regenerate_id(true);
         $_SESSION['uid'] = $uid;

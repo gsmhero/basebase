@@ -21,48 +21,13 @@ if (is_post()) {
     elseif ($name === '' || $phone === '' || $address === '') $err = 'Fill in name, phone and delivery address.';
     elseif (($pay = ($_POST['pay'] ?? 'cod') === 'test' ? 'test' : 'cod') === 'test' && preg_replace('/\D+/', '', (string)($_POST['card'] ?? '')) !== '4242424242424242') $err = 'Test payment declined. Use the test card 4242 4242 4242 4242.';
     else {
-        $pdo = db();
-        $pdo->beginTransaction();
         try {
-            $total = 0.0; $ready = [];
-            foreach ($lines as $l) {
-                $p = row('SELECT * FROM products WHERE id = ? FOR UPDATE', [$l['pid']]);
-                if (!$p || $p['status'] !== 'active') throw new RuntimeException('“' . $l['title'] . '” is no longer available.');
-                $variants = json_decode($p['variants'] ?? '[]', true) ?: [];
-                if ($variants) {
-                    $ok = false;
-                    foreach ($variants as &$v) if ($v['name'] === $l['variant']) { if ((int)$v['stock'] < $l['qty']) throw new RuntimeException('Not enough stock for “' . $l['title'] . '”.'); $v['stock'] = (int)$v['stock'] - $l['qty']; $ok = true; }
-                    unset($v);
-                    if (!$ok) throw new RuntimeException('Option no longer available for “' . $l['title'] . '”.');
-                    q('UPDATE products SET variants = ?, stock = ? WHERE id = ?', [json_encode($variants, JSON_UNESCAPED_UNICODE), array_sum(array_column($variants, 'stock')), $p['id']]);
-                } else {
-                    if ((int)$p['stock'] < $l['qty']) throw new RuntimeException('Not enough stock for “' . $l['title'] . '”.');
-                    q('UPDATE products SET stock = stock - ? WHERE id = ?', [$l['qty'], $p['id']]);
-                }
-                $total += $l['sum']; $ready[] = [$l, $p];
-            }
-            q('INSERT INTO orders (customer_id, total, status, name, phone, address, delivery_method, payment_method, payment_status, notes) VALUES (?,?,?,?,?,?,?,?,?,?)',
-              [$u['id'], $total, 'new', $name, $phone, $address, $delivery, $pay, $pay === 'test' ? 'paid' : 'unpaid', $notes]);
-            $oid = (int)$pdo->lastInsertId();
-            $notify = [];
-            foreach ($ready as [$l, $p]) {
-                $reseller = (int)$l['shop_id'];
-                if ($reseller) {
-                    $ru = (int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller]);
-                    if (!$ru || $ru === (int)$u['id'] || $reseller === (int)$p['vendor_id']) $reseller = 0;
-                }
-                [$fee, $rfee] = item_split($p, (float)$l['unit'], (int)$l['qty'], (bool)$reseller);
-                q('INSERT INTO order_items (order_id, product_id, vendor_id, qty, price, commission, fulfillment, item_status, reseller_id, reseller_fee, title, variant) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-                  [$oid, $p['id'], $p['vendor_id'], $l['qty'], $l['unit'], $fee, $p['is_dropship'] ? 'dropship' : 'vendor', 'pending', $reseller ?: null, $rfee, $p['title'], $l['variant']]);
-                $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$p['vendor_id']])][] = $p['title'];
-                if ($reseller) $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller])][] = $p['title'];
-            }
+            $lines = array_map(fn($l) => ['pid' => $l['pid'], 'qty' => (int)$l['qty'], 'variant' => $l['variant'], 'unit' => (float)$l['unit'], 'shop_id' => (int)$l['shop_id'], 'title' => $l['title']], $lines);
+            $oid = place_order((int)$u['id'], $lines, compact('name', 'phone', 'address', 'delivery', 'notes'), $pay);
             q('DELETE FROM cart_items WHERE user_id = ?', [$u['id']]);
-            $pdo->commit();
-            foreach ($notify as $uid => $titles) notify($uid, 'New order BB-' . (1000 + $oid) . ': ' . count($titles) . ' item(s)', '/cabinet/orders/' . $oid);
             flash('Order BB-' . (1000 + $oid) . ($pay === 'test' ? ' paid with test payment (no real money). Mark items as Delivered to credit wallets.' : ' placed! The seller will contact you shortly.'));
             redirect('/cabinet/orders/' . $oid);
-        } catch (RuntimeException $e) { $pdo->rollBack(); $err = $e->getMessage(); }
+        } catch (RuntimeException $e) { $err = $e->getMessage(); }
     }
 }
 

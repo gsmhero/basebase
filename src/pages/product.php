@@ -38,6 +38,8 @@ layout($p['title'], function () use ($p, $variants, $gallery, $groups, $stock, $
       </div><?php endif; ?>
       <div class="buybar" style="margin-top:18px">
         <button class="btn sm" data-copy="<?= e($shareUrl) ?>"><?= ico('share', 16) ?> Share product</button>
+        <?php $emb = preg_replace('~/product/(\d+)~', '/embed/product/$1', $shareUrl); $embHost = strstr($shareUrl, '/product/', true); ?>
+        <button class="btn sm" title="Paste into any blog or site: buyers purchase without leaving it" data-copy="<?= e('<iframe src="' . $emb . '" width="100%" height="260" style="border:0;max-width:720px" loading="lazy" title="basebase.ru"></iframe><script async src="' . $embHost . '/assets/embed.js"></script>') ?>"><?= ico('code', 16) ?> Embed</button>
       </div>
 
       <div style="margin-top:34px;border-top:1px solid var(--line);padding-top:22px">

@@ -18,7 +18,7 @@ $seg = $path === '' ? [] : explode('/', $path);
 $page = $seg[0] ?? 'home';
 $pages = ROOT . '/src/pages';
 
-$simple = ['home', 'faq', 'blogs', 'login', 'register', 'logout', 'cart', 'watch', 'product', 'shop', 'set', 'do', 'blog', 'invite'];
+$simple = ['home', 'faq', 'blogs', 'login', 'register', 'logout', 'cart', 'watch', 'product', 'shop', 'set', 'do', 'blog', 'invite', 'embed'];
 $file = null;
 if ($page === 'products') $file = "$pages/catalog.php";
 elseif (in_array($page, $simple, true)) $file = "$pages/$page.php";
