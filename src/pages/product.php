@@ -1,6 +1,6 @@
 <?php
 $id = (int)($seg[1] ?? 0);
-$p = row('SELECT p.*, v.shop_name, v.slug, v.user_id AS owner_uid FROM products p JOIN vendors v ON v.id = p.vendor_id WHERE p.id = ?', [$id]);
+$p = row('SELECT p.*, v.shop_name, v.slug, v.bio, v.blogging_type, v.user_id AS owner_uid FROM products p JOIN vendors v ON v.id = p.vendor_id WHERE p.id = ?', [$id]);
 $u = me();
 $isOwner = $u && $p && ((int)$p['owner_uid'] === (int)$u['id'] || $u['role'] === 'admin');
 if (!$p || ($p['status'] !== 'active' && !$isOwner)) {
@@ -15,7 +15,8 @@ $variants = json_decode($p['variants'] ?? '[]', true) ?: [];
 $gallery = json_decode($p['gallery'] ?? '[]', true) ?: [];
 $attrs = json_decode($p['attrs'] ?? '[]', true) ?: [];
 $stock = $variants ? array_sum(array_column($variants, 'stock')) : (int)$p['stock'];
-$promo = (float)$p['promo_price'] > 0;
+$promo = false; // promo price is the supplier price and is never shown to customers
+$ref = $shop ? row("SELECT shop_name, slug FROM vendors WHERE id = ? AND id <> ?", [$shop, $p["vendor_id"]]) : null;
 $path = category_path($p['category_id'] ? (int)$p['category_id'] : null);
 [$rn, $ravg] = rating_of($id);
 $revs = rows('SELECT r.*, u.name FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.product_id = ? ORDER BY r.id DESC LIMIT 30', [$id]);
@@ -25,7 +26,7 @@ $shareUrl = (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . ($_SERVER['HT
 $groups = [];
 foreach ($attrs as $a) $groups[$a['section'] ?: 'Specifications'][] = $a;
 
-layout($p['title'], function () use ($p, $variants, $gallery, $groups, $stock, $promo, $path, $rn, $ravg, $revs, $collected, $myReview, $u, $isOwner, $shop, $shareUrl, $id) { ?>
+layout($p['title'], function () use ($p, $variants, $gallery, $groups, $stock, $promo, $ref, $path, $rn, $ravg, $revs, $collected, $myReview, $u, $isOwner, $shop, $shareUrl, $id) { ?>
 <div class="wrap">
   <div class="crumbs" style="margin-top:24px"><a href="/products">Products</a><?php foreach ($path as $c): ?> / <a href="/products?cat=<?= $c['id'] ?>"><?= e($c['name']) ?></a><?php endforeach; ?></div>
   <div class="pdp">
@@ -61,10 +62,17 @@ layout($p['title'], function () use ($p, $variants, $gallery, $groups, $stock, $
 
       <div class="prices">
         <div class="r"><span class="muted">Price</span><span class="<?= $promo ? 'old' : 'big' ?>"><?= money($p['price']) ?></span></div>
-        <?php if ($promo): ?><div class="r"><span class="muted">Promo price</span><span class="big promo"><?= money($p['promo_price']) ?></span></div><?php endif; ?>
         <div class="r"><span class="muted">Stock</span><b><?= $stock > 0 ? num($stock) . ' pc' : '<span style="color:var(--bad)">Out of stock</span>' ?></b></div>
-        <div class="r"><span class="muted">Seller</span><a class="link" href="/shop/<?= e($p['slug']) ?>"><?= e($p['shop_name']) ?></a></div>
-        <?php if (can_resell($u) && (int)$p['owner_uid'] !== (int)$u['id']): ?><div class="r"><span class="muted">Your commission</span><b style="color:var(--ok)"><?= rtrim(rtrim(number_format((float)$p['reseller_pct'], 2), '0'), '.') ?>% · <?= money(eff_price($p) * $p['reseller_pct'] / 100) ?></b></div><?php endif; ?>
+        <?php if (can_resell($u) && (int)$p['owner_uid'] !== (int)$u['id']): ?><div class="r"><span class="muted">You earn per sale</span><b style="color:var(--ok)"><?= money(reseller_earn($p)) ?></b></div><?php endif; ?>
+        <?php if ($isOwner && (float)$p['promo_price'] > 0): ?><div class="r"><span class="muted">You receive (supplier price)</span><b><?= money($p['promo_price']) ?></b></div><?php endif; ?>
+      </div>
+
+      <div class="owner" style="margin-bottom:18px">
+        <span class="av"><?= e(mb_strtoupper(mb_substr($p['shop_name'], 0, 1))) ?></span>
+        <div style="flex:1;min-width:0"><div class="muted sm">Product author</div><a class="link" href="/shop/<?= e($p['slug']) ?>"><b><?= e($p['shop_name']) ?></b></a>
+          <?php if ($p['blogging_type']): ?><span class="muted sm"> · <?= e($p['blogging_type']) ?></span><?php endif; ?>
+          <?php if ($ref): ?><div class="muted sm">Recommended in <a class="link" href="/shop/<?= e($ref['slug']) ?>" style="color:var(--accent-d)"><?= e($ref['shop_name']) ?></a></div><?php endif; ?></div>
+        <a class="btn sm" href="/shop/<?= e($p['slug']) ?>" style="flex:none">Visit shop</a>
       </div>
 
       <form method="post" action="/do/cart-add" class="buybar-form">

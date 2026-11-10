@@ -55,6 +55,28 @@
   // confirm
   document.addEventListener('submit', e => { const c = e.target.dataset.confirm; if (c && !confirm(c)) e.preventDefault(); });
 
+  // set price = sum of ticked products
+  const st = $('#set-total');
+  if (st) {
+    const boxes = $$('input[data-price]', st.closest('form'));
+    const calc = () => { st.textContent = boxes.reduce((s, b) => s + (b.checked ? +b.dataset.price : 0), 0).toLocaleString('ru-RU') + ' ₽'; };
+    boxes.forEach(b => b.addEventListener('change', calc)); calc();
+  }
+
+  // product form: show how the margin is split
+  const sp = $('#split');
+  if (sp) {
+    const pr = $('#f-price'), pm = $('#f-promo'), out = $('#split-out'), pct = +sp.dataset.pct || 0;
+    const f = n => Math.round(n).toLocaleString('ru-RU') + ' ₽';
+    const calc = () => {
+      const a = +pr.value || 0, b = +pm.value || 0;
+      if (!a || !b || b >= a) { out.textContent = a ? 'Without a promo price the whole price goes to you.' : ''; return; }
+      const m = a - b, fee = m * pct / 100;
+      out.textContent = 'You receive ' + f(b) + ' · blogger ' + f(m - fee) + ' · platform ' + f(fee) + ' (with a blogger).';
+    };
+    pr.addEventListener('input', calc); pm.addEventListener('input', calc); calc();
+  }
+
   // chat scroll
   const m = $('.msgs'); if (m) m.scrollTop = m.scrollHeight;
 })();

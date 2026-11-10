@@ -75,13 +75,13 @@ foreach ($cat as $i => [$t, $short, $c, $price, $promo, $stock, $pct, $si, $sku,
     $variants = $opts ? array_map(fn($o) => ['name' => $o[0], 'price' => $o[1], 'stock' => $o[2]], $opts) : null;
     if ($variants) $stock = array_sum(array_column($variants, 'stock'));
     q("INSERT INTO products (vendor_id, title, short_desc, description, price, promo_price, stock, reseller_pct, category_id, sku, attrs, variants, is_dropship, views) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
-      [$sup[$si], $t, $short, $short . "\n\nCarefully selected by our team and shipped directly from the supplier's warehouse. Questions? Use “Ask seller”.", $price, $promo, $stock, $pct, $c, $sku, json_encode($attrsFor($c), JSON_UNESCAPED_UNICODE), $variants ? json_encode($variants, JSON_UNESCAPED_UNICODE) : null, random_int(40, 2600)]);
+      [$sup[$si], $t, $short, $short . "\n\nCarefully selected by our team and shipped directly from the supplier's warehouse. Questions? Use “Ask seller”.", $price, round($price * 0.72), $stock, $pct, $c, $sku, json_encode($attrsFor($c), JSON_UNESCAPED_UNICODE), $variants ? json_encode($variants, JSON_UNESCAPED_UNICODE) : null, random_int(40, 2600)]);
     $pid[$i] = (int)db()->lastInsertId();
 }
 // collections: bloggers collect matching items
 $coll = [[0, [0, 1, 2, 3, 4, 16]], [1, [5, 6, 7, 8, 9, 17]], [2, [10, 11, 12, 13, 14, 15]]];
 foreach ($coll as [$b, $items]) foreach ($items as $k => $ix) q('INSERT IGNORE INTO collection_items (vendor_id, product_id, grp) VALUES (?,?,?)', [$bl[$b], $pid[$ix], $k < 3 ? 'Favourites' : 'Gift ideas']);
-q('INSERT INTO product_sets (vendor_id, title, price) VALUES (?,?,?)', [$bl[0], 'Glow routine set', 6990]); $sid = (int)db()->lastInsertId();
+q('INSERT INTO product_sets (vendor_id, title, price) VALUES (?,?,?)', [$bl[0], 'Glow routine set', 6720]); $sid = (int)db()->lastInsertId();
 foreach ([0, 2, 4] as $ix) q('INSERT INTO set_items (set_id, product_id, qty) VALUES (?,?,1)', [$sid, $pid[$ix]]);
 // reviews
 $names = ['Olga', 'Dmitry', 'Irina', 'Sergey', 'Maria'];
@@ -94,9 +94,9 @@ $statuses = ['delivered', 'delivered', 'delivered', 'shipped', 'prepare', 'pendi
 for ($n = 0; $n < 26; $n++) {
     $day = date('Y-m-d H:i:s', strtotime('-' . random_int(0, 58) . ' days -' . random_int(0, 20) . ' hours'));
     $ix = random_int(0, count($cat) - 1); $p = $cat[$ix]; $qty = random_int(1, 3);
-    $unit = (float)($p[4] ?: $p[3]); $b = random_int(0, 2); $shopBl = $coll[$b][1];
+    $unit = (float)$p[3]; $b = random_int(0, 2); $shopBl = $coll[$b][1];
     $reseller = in_array($ix, $shopBl, true) ? $bl[$b] : null;
-    $sum = $unit * $qty; $fee = round($sum * 0.10, 2); $rf = $reseller ? round($sum * $p[6] / 100, 2) : 0;
+    $sum = $unit * $qty; [$fee, $rf] = item_split(["price" => $p[3], "promo_price" => round($p[3] * 0.72)], $unit, $qty, (bool)$reseller);
     $st = $statuses[array_rand($statuses)];
     q("INSERT INTO orders (customer_id, total, status, name, phone, address, delivery_method, payment_status, notes, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)", [$buyer, $sum, $st === 'delivered' ? 'done' : 'shipped', 'Demo Customer', '+7 900 000-00-00', 'Moscow, Demo street 1', ['CDEK', 'OZON Shipping'][$n % 2], $st === 'delivered' ? 'paid' : 'unpaid', $n % 5 ? '' : 'Please add box', $day]);
     $oid = (int)db()->lastInsertId();
@@ -105,6 +105,7 @@ for ($n = 0; $n < 26; $n++) {
     if ($st === 'delivered') {
         $su = (int)val('SELECT user_id FROM vendors WHERE id = ?', [$sup[$p[7]]]);
         q("INSERT IGNORE INTO wallet_tx (user_id, amount, type, ref, note, created_at) VALUES (?,?,?,?,?,?)", [$su, $sum - $fee - $rf, 'sale', "oi$iid:s", 'Sale: ' . $p[0], $day]);
+        q("INSERT IGNORE INTO wallet_tx (user_id, amount, type, ref, note, created_at) VALUES (?,?,?,?,?,?)", [admin_user_id(), $fee, 'commission', "oi$iid:a", 'Platform margin: ' . $p[0], $day]);
         if ($reseller) q("INSERT IGNORE INTO wallet_tx (user_id, amount, type, ref, note, created_at) VALUES (?,?,?,?,?,?)", [(int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller]), $rf, 'commission', "oi$iid:r", 'Commission: ' . $p[0], $day]);
     }
 }

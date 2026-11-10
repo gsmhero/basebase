@@ -13,9 +13,10 @@ if (is_post()) {
         flash('Group updated.');
     } elseif ($do === 'set-create') {
         $ids = array_map('intval', (array)($_POST['items'] ?? []));
-        $title = trim((string)($_POST['title'] ?? '')); $price = (float)($_POST['price'] ?? 0);
+        $title = trim((string)($_POST['title'] ?? ''));
         $ids = $ids ? array_column(rows('SELECT product_id FROM collection_items WHERE vendor_id = ? AND product_id IN (' . in_clause($ids) . ')', [$vid, ...$ids]), 'product_id') : [];
-        if ($title === '' || $price <= 0 || count($ids) < 2) flash('A set needs a title, a price and at least 2 products from your collection.', 'bad');
+        $price = $ids ? (float)val('SELECT SUM(price) FROM products WHERE id IN (' . in_clause($ids) . ')', $ids) : 0;
+        if ($title === '' || count($ids) < 2) flash('A set needs a title and at least 2 products from your collection.', 'bad');
         else {
             q('INSERT INTO product_sets (vendor_id, title, price) VALUES (?,?,?)', [$vid, $title, $price]);
             $sid = (int)db()->lastInsertId();
@@ -28,12 +29,12 @@ if (is_post()) {
 
 $host = (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'www.basebase.ru');
 $items = rows('SELECT p.*, ci.grp, c.name cat_name FROM collection_items ci JOIN products p ON p.id = ci.product_id LEFT JOIN categories c ON c.id = p.category_id WHERE ci.vendor_id = ? ORDER BY ci.created_at DESC', [$vid]);
-$sets = rows('SELECT s.*, (SELECT COUNT(*) FROM set_items WHERE set_id = s.id) n FROM product_sets s WHERE s.vendor_id = ? ORDER BY s.id DESC', [$vid]);
+$sets = rows('SELECT s.*, (SELECT COUNT(*) FROM set_items WHERE set_id = s.id) n, ' . SET_SUM_SQL . ' AS sum FROM product_sets s WHERE s.vendor_id = ? ORDER BY s.id DESC', [$vid]);
 $groups = []; foreach ($items as $i) if ($i['grp'] !== '') $groups[$i['grp']][] = $i;
 
 function share_box(string $url, string $label): string {
     $code = '<a href="' . $url . '">' . $label . '</a>';
-    return '<div class="share-box"><button type="button" class="btn sm" data-copy="' . e($url) . '">' . ico('link', 14) . ' As link URL</button><button type="button" class="btn sm" data-copy="' . e($code) . '">' . ico('code', 14) . ' As code</button></div>';
+    return '<div class="share-grid"><button type="button" class="btn sm" data-copy="' . e($url) . '">' . ico('link', 14) . ' Link URL</button><button type="button" class="btn sm" data-copy="' . e($code) . '">' . ico('code', 14) . ' Code</button></div>';
 }
 
 layout('Product collection', function () use ($items, $sets, $groups, $tab, $host, $u, $vid) { ?>
@@ -44,7 +45,7 @@ layout('Product collection', function () use ($items, $sets, $groups, $tab, $hos
   <?php if ($items): ?><div class="mini-grid"><?php foreach ($items as $p): $url = $host . '/product/' . $p['id'] . '?shop=' . $vid; ?>
     <article class="pcard"><a class="pcard-img" href="/product/<?= $p['id'] ?>"><?= pimg($p) ?></a><div class="pcard-body">
       <a class="pcard-title" href="/product/<?= $p['id'] ?>"><?= e($p['title']) ?></a>
-      <div class="row" style="flex:none;justify-content:space-between;gap:6px"><div class="price"><?= money(eff_price($p)) ?></div><span class="badge ok" style="flex:none">+<?= money(eff_price($p) * $p['reseller_pct'] / 100) ?></span></div>
+      <div class="row" style="flex:none;justify-content:space-between;gap:6px"><div class="price"><?= money(eff_price($p)) ?></div><span class="badge ok" style="flex:none">+<?= money(reseller_earn($p)) ?></span></div>
       <form method="post" class="share-box" style="margin-top:6px"><?= csrf_field() ?><input type="hidden" name="do" value="group"><input type="hidden" name="id" value="<?= $p['id'] ?>"><input name="grp" value="<?= e($p['grp']) ?>" placeholder="Group" list="grp-list" maxlength="80"><button class="btn sm">Set</button></form>
       <div style="margin-top:8px"><?= share_box($url, $p['title']) ?></div>
       <form method="post" style="margin-top:8px"><?= csrf_field() ?><input type="hidden" name="do" value="remove"><input type="hidden" name="id" value="<?= $p['id'] ?>"><button class="btn sm danger block"><?= ico('trash', 14) ?> Remove</button></form>
@@ -55,13 +56,13 @@ layout('Product collection', function () use ($items, $sets, $groups, $tab, $hos
 <?php elseif ($tab === 'sets'): ?>
   <div class="dash-grid">
     <section class="card span-7"><div class="card-h"><h3>My sets</h3></div>
-      <?php foreach ($sets as $s): $url = $host . '/set/' . $s['id']; ?><div class="row" style="flex-wrap:nowrap;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><a class="link" href="/set/<?= $s['id'] ?>"><b><?= e($s['title']) ?></b></a><div class="muted sm"><?= $s['n'] ?> items · <?= money($s['price']) ?></div></div>
+      <?php foreach ($sets as $s): $url = $host . '/set/' . $s['id']; ?><div class="row" style="flex-wrap:nowrap;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)"><div style="min-width:0"><a class="link" href="/set/<?= $s['id'] ?>"><b><?= e($s['title']) ?></b></a><div class="muted sm"><?= $s['n'] ?> items · <?= money($s['sum']) ?></div></div>
         <div style="flex:none"><?= share_box($url, $s['title']) ?></div>
         <form method="post" data-confirm="Delete this set?" style="flex:none"><?= csrf_field() ?><input type="hidden" name="do" value="set-delete"><input type="hidden" name="id" value="<?= $s['id'] ?>"><button class="icon-btn"><?= ico('trash', 18) ?></button></form></div><?php endforeach; ?>
       <?php if (!$sets): ?><p class="muted">No sets yet. Create the first one →</p><?php endif; ?></section>
     <form method="post" class="card span-5"><?= csrf_field() ?><input type="hidden" name="do" value="set-create"><h3>New set</h3>
-      <?= field('Set title', 'title', '', 'text', 'required') ?><?= field('Set price, ₽', 'price', '', 'number', 'min="1" step="0.01" required') ?>
-      <div class="fld"><span>Pick products (min. 2)</span><div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px"><?php foreach ($items as $p): ?><label style="display:flex;gap:10px;align-items:center;padding:6px 0"><input type="checkbox" name="items[]" value="<?= $p['id'] ?>"><span style="flex:1"><?= e(mb_strimwidth($p['title'], 0, 38, '…')) ?></span><b class="sm"><?= money(eff_price($p)) ?></b></label><?php endforeach; if (!$items) echo '<p class="muted">Collect products first.</p>'; ?></div></div>
+      <?= field('Set title', 'title', '', 'text', 'required') ?>      <div class="fld"><span>Pick products (min. 2)</span><div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px 10px"><?php foreach ($items as $p): ?><label style="display:flex;gap:10px;align-items:center;padding:6px 0"><input type="checkbox" name="items[]" value="<?= $p['id'] ?>" data-price="<?= eff_price($p) ?>"><span style="flex:1"><?= e(mb_strimwidth($p['title'], 0, 38, '…')) ?></span><b class="sm"><?= money(eff_price($p)) ?></b></label><?php endforeach; if (!$items) echo '<p class="muted">Collect products first.</p>'; ?></div></div>
+      <div class="row" style="justify-content:space-between;flex-wrap:nowrap;padding:4px 0 14px"><span class="muted">Set price (sum of products)</span><b id="set-total" style="flex:none">0 ₽</b></div>
       <button class="btn dark block" <?= count($items) < 2 ? 'disabled' : '' ?>>Create set</button></form>
   </div>
 

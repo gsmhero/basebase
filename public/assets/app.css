@@ -242,6 +242,31 @@ input[type=checkbox],input[type=radio]{width:auto}
 .foot a{display:block;padding:4px 0;color:#c3c7d3}.foot a:hover{color:#f1d28b}.foot b{display:block;color:#fff;margin-bottom:8px}
 .foot .copy{margin-top:30px;padding-top:18px;border-top:1px solid #272b36;font-size:13px;color:#7b8190}
 
+/* layout safety: grid children may shrink instead of overflowing */
+.dash-grid>*,.cab-main,.cab-main>div>*{min-width:0}
+.share-box>*{min-width:0}.share-box input{flex:1}
+.share-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.share-grid .btn{padding:8px 6px;font-size:12.5px;gap:5px;min-width:0}
+.soc-row{display:grid;grid-template-columns:74px minmax(0,1fr) 92px;gap:8px;margin-bottom:10px;align-items:center}
+.soc-row b{font-size:13px}
+.wallet-n{overflow-wrap:anywhere}
+.mini-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+
+/* blog */
+.posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px}
+.post-card{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);transition:.2s}
+.post-card:hover{transform:translateY(-4px);box-shadow:var(--sh-lg)}
+.post-cover{aspect-ratio:16/9;background:var(--soft);overflow:hidden}.post-cover img,.post-cover .ph{width:100%;height:100%;object-fit:cover}
+.post-body{padding:18px 20px 20px;display:flex;flex-direction:column;gap:8px;flex:1}
+.post-body h3{margin:0;font-size:20px}.post-body p{margin:0;color:var(--muted)}
+.post-meta{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);margin-top:auto;padding-top:8px}
+.post-meta .av{width:28px;height:28px;font-size:12px}
+.article{max-width:820px;margin:0 auto}.article h1{margin-bottom:12px}.article .lead{font-size:18px;line-height:1.7;color:var(--ink2)}
+.article-cover{border-radius:var(--r);overflow:hidden;margin:22px 0;aspect-ratio:16/8;background:var(--soft)}.article-cover img{width:100%;height:100%;object-fit:cover}
+.picks{display:grid;gap:14px}
+.pick-box{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:6px 12px}
+.pick-box label{display:flex;gap:10px;align-items:center;padding:7px 0;cursor:pointer;border-bottom:1px solid var(--line)}.pick-box label:last-child{border:0}
+.pick-box label span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* responsive */
 @media (max-width:1060px){
   .search{display:none}.catalog{grid-template-columns:1fr}.filters{position:static}

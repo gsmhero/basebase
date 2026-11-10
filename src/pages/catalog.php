@@ -9,10 +9,10 @@ $min = $_GET['min'] ?? ''; $max = $_GET['max'] ?? '';
 $where = ["p.status='active'"]; $args = [];
 if ($cat) { $where[] = '(p.category_id = ? OR p.category_id IN (SELECT id FROM categories WHERE parent_id = ?))'; array_push($args, $cat, $cat); }
 if ($qs !== '') { $where[] = '(p.title LIKE ? OR p.short_desc LIKE ? OR p.sku LIKE ?)'; array_push($args, "%$qs%", "%$qs%", "%$qs%"); }
-if ($min !== '') { $where[] = 'COALESCE(NULLIF(p.promo_price,0),p.price) >= ?'; $args[] = (float)$min; }
-if ($max !== '') { $where[] = 'COALESCE(NULLIF(p.promo_price,0),p.price) <= ?'; $args[] = (float)$max; }
+if ($min !== '') { $where[] = 'p.price >= ?'; $args[] = (float)$min; }
+if ($max !== '') { $where[] = 'p.price <= ?'; $args[] = (float)$max; }
 $w = implode(' AND ', $where);
-$order = ['new' => 'p.id DESC', 'cheap' => 'COALESCE(NULLIF(p.promo_price,0),p.price) ASC', 'expensive' => 'COALESCE(NULLIF(p.promo_price,0),p.price) DESC', 'popular' => 'p.views DESC'][$sort] ?? 'p.id DESC';
+$order = ['new' => 'p.id DESC', 'cheap' => 'p.price ASC', 'expensive' => 'p.price DESC', 'popular' => 'p.views DESC'][$sort] ?? 'p.id DESC';
 
 $total = (int)val("SELECT COUNT(*) FROM products p WHERE $w", $args);
 $items = rows("SELECT p.*, c.name cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE $w ORDER BY $order LIMIT $per OFFSET " . (($pg - 1) * $per), $args);

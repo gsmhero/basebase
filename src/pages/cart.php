@@ -50,9 +50,7 @@ if (is_post()) {
                     $ru = (int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller]);
                     if (!$ru || $ru === (int)$u['id'] || $reseller === (int)$p['vendor_id']) $reseller = 0;
                 }
-                $pct = (float)val('SELECT commission_pct FROM vendors WHERE id = ?', [$p['vendor_id']]) ?: 10.0;
-                $fee = round($l['sum'] * $pct / 100, 2);
-                $rfee = $reseller ? round($l['sum'] * (float)$p['reseller_pct'] / 100, 2) : 0.0;
+                [$fee, $rfee] = item_split($p, (float)$l['unit'], (int)$l['qty'], (bool)$reseller);
                 q('INSERT INTO order_items (order_id, product_id, vendor_id, qty, price, commission, fulfillment, item_status, reseller_id, reseller_fee, title, variant) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
                   [$oid, $p['id'], $p['vendor_id'], $l['qty'], $l['unit'], $fee, $p['is_dropship'] ? 'dropship' : 'vendor', 'pending', $reseller ?: null, $rfee, $p['title'], $l['variant']]);
                 $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$p['vendor_id']])][] = $p['title'];

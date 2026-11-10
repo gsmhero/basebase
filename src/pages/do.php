@@ -51,10 +51,8 @@ switch ($act) {
         $set = row('SELECT * FROM product_sets WHERE id = ?', [$id]);
         if (!$set) break;
         $items = rows('SELECT p.*, si.qty AS set_qty FROM set_items si JOIN products p ON p.id = si.product_id WHERE si.set_id = ? AND p.status = "active"', [$id]);
-        $sum = 0; foreach ($items as $p) $sum += eff_price($p) * $p['set_qty'];
-        if ($sum <= 0) break;
-        $k = (float)$set['price'] / $sum;
-        foreach ($items as $p) add_to_cart((int)$u['id'], $p, (int)$set['vendor_id'] === (int)$p['vendor_id'] ? 0 : (int)$set['vendor_id'], '', (int)$p['set_qty'], round(eff_price($p) * $k, 2));
+        if (!$items) break;
+        foreach ($items as $p) add_to_cart((int)$u['id'], $p, (int)$set['vendor_id'] === (int)$p['vendor_id'] ? 0 : (int)$set['vendor_id'], '', (int)$p['set_qty']);
         flash('Set added to cart.');
         redirect('/cart');
 

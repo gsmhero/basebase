@@ -8,11 +8,10 @@ layout($set['title'], function () use ($set, $items, $sum, $id) { ?>
 <div class="wrap">
   <div class="page-h"><div class="crumbs"><a href="/shop/<?= e($set['slug']) ?>"><?= e($set['shop_name']) ?></a> / Set</div><h1><?= e($set['title']) ?></h1></div>
   <div class="cart">
-    <div class="card"><?php foreach ($items as $p): ?><div class="line" style="grid-template-columns:84px 1fr auto"><a class="th" href="/product/<?= $p['id'] ?>"><?= pimg($p) ?></a><div><a href="/product/<?= $p['id'] ?>"><b><?= e($p['title']) ?></b></a><div class="muted sm">× <?= $p['set_qty'] ?></div></div><div class="price"><?= money(eff_price($p) * $p['set_qty']) ?></div></div><?php endforeach; ?></div>
+    <div class="card"><?php foreach ($items as $p): ?><div class="line" style="grid-template-columns:84px 1fr auto"><a class="th" href="/product/<?= $p['id'] ?>?shop=<?= (int)$set['vendor_id'] ?>"><?= pimg($p) ?></a><div><a href="/product/<?= $p['id'] ?>?shop=<?= (int)$set['vendor_id'] ?>"><b><?= e($p['title']) ?></b></a><div class="muted sm">× <?= $p['set_qty'] ?></div></div><div class="price"><?= money(eff_price($p) * $p['set_qty']) ?></div></div><?php endforeach; ?></div>
     <div class="card sum">
-      <div class="r"><span class="muted">Items total</span><s class="muted"><?= money($sum) ?></s></div>
-      <div class="r"><span class="muted">You save</span><b style="color:var(--ok)"><?= money(max(0, $sum - $set['price'])) ?></b></div>
-      <div class="r tot"><span>Set price</span><span><?= money($set['price']) ?></span></div>
+      <div class="r"><span class="muted">Products</span><span><?= count($items) ?></span></div>
+      <div class="r tot"><span>Set price</span><span><?= money($sum) ?></span></div>
       <form method="post" action="/do/set-add" style="margin-top:16px"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn gold block lg"><?= ico('cart', 18) ?> Add set to cart</button></form>
     </div>
   </div>

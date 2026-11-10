@@ -23,7 +23,7 @@ if ($sub === '') {
       <?php foreach ($items as $p): ?><article class="pcard"><a class="pcard-img" href="/product/<?= $p['id'] ?>"><?= pimg($p) ?></a>
         <div class="pcard-body"><a class="pcard-title" href="/product/<?= $p['id'] ?>"><?= e($p['title']) ?></a>
           <div class="row" style="gap:6px;flex:none;flex-wrap:nowrap"><?= badge($p['status']) ?><span class="muted sm"><?= $p['collectors'] ?> collectors</span></div>
-          <div class="pcard-foot"><div><div class="price"><?= money(eff_price($p)) ?></div><div class="muted sm">Stock <?= num($p['stock']) ?> · Commission <?= rtrim(rtrim(number_format((float)$p['reseller_pct'], 2), '0'), '.') ?>%</div></div></div>
+          <div class="pcard-foot"><div><div class="price"><?= money(eff_price($p)) ?></div><div class="muted sm">Stock <?= num($p['stock']) ?><?= (float)$p['promo_price'] > 0 ? ' · You get ' . money($p['promo_price']) : '' ?></div></div></div>
           <div class="row" style="gap:8px;margin-top:10px;flex-wrap:nowrap"><a class="btn sm block" href="/cabinet/products/<?= $p['id'] ?>"><?= ico('edit', 14) ?> Edit</a>
             <form method="post" data-confirm="Delete this product?" style="flex:none"><?= csrf_field() ?><input type="hidden" name="do" value="delete"><input type="hidden" name="id" value="<?= $p['id'] ?>"><button class="btn sm danger"><?= ico('trash', 14) ?></button></form></div>
         </div></article><?php endforeach; ?></div>
@@ -53,7 +53,7 @@ if (is_post()) {
         foreach ((array)($_POST['remove_g'] ?? []) as $rg) $gallery = array_values(array_diff($gallery, [$rg]));
         $gallery = array_slice([...$gallery, ...save_uploads('gallery')], 0, 8);
         $data = [$title, mb_substr(trim((string)($_POST['short_desc'] ?? '')), 0, 500), trim((string)($_POST['description'] ?? '')), $price, $promo,
-            $stock, (float)($_POST['reseller_pct'] ?? 15), (int)($_POST['category_id'] ?? 0) ?: null, trim((string)($_POST['sku'] ?? '')) ?: null,
+            $stock, (float)($p['reseller_pct'] ?? 15), (int)($_POST['category_id'] ?? 0) ?: null, trim((string)($_POST['sku'] ?? '')) ?: null,
             in_array($_POST['status'] ?? '', ['active', 'draft'], true) ? $_POST['status'] : 'active', $image,
             json_encode($gallery), json_encode($attrs, JSON_UNESCAPED_UNICODE), $variants ? json_encode($variants, JSON_UNESCAPED_UNICODE) : null];
         $data[6] = max(0, min(70, $data[6]));
@@ -94,11 +94,10 @@ layout($p ? 'Edit product' : 'Add product', function () use ($p, $vals, $tree, $
 
   <section class="span-4" style="display:grid;gap:22px;align-content:start">
     <div class="card"><h3>Pricing &amp; stock</h3>
-      <?= field('Price, ₽', 'price', $vals['price'], 'number', 'step="0.01" min="0" required') ?>
-      <?= field('Promo price, ₽', 'promo_price', $vals['promo_price'], 'number', 'step="0.01" min="0"') ?>
+      <?= field('Price, ₽ (shown to customers)', 'price', $vals['price'], 'number', 'step="0.01" min="0" required id="f-price"') ?>
+      <?= field('Promo price, ₽ (you receive)', 'promo_price', $vals['promo_price'], 'number', 'step="0.01" min="0" id="f-promo"') ?>
+      <div class="notice sm" id="split" data-pct="<?= e(platform_pct()) ?>" style="margin:-4px 0 14px">Customers only see the Price. The difference between Price and Promo price is the margin: it goes to the blogger who sold the product, minus the platform commission (<?= rtrim(rtrim(number_format(platform_pct(), 2), '0'), '.') ?>%). Without a blogger the margin goes to the platform.<div id="split-out" style="margin-top:6px;font-weight:600"></div></div>
       <?= field('Stock, pc (simple product)', 'stock', $vals['stock'], 'number', 'min="0"') ?>
-      <?= field('Reseller commission, %', 'reseller_pct', $vals['reseller_pct'], 'number', 'step="0.5" min="0" max="70"') ?>
-      <p class="muted sm" style="margin:-6px 0 14px">Paid to the blogger who sells your product. Platform fee is deducted separately.</p>
       <label class="fld"><span>Status</span><select name="status"><option value="active" <?= $vals['status'] === 'active' ? 'selected' : '' ?>>Active — visible in catalog</option><option value="draft" <?= $vals['status'] === 'draft' ? 'selected' : '' ?>>Draft — hidden</option></select></label>
     </div>
     <div class="card"><h3>Images</h3>

@@ -12,7 +12,7 @@ $args = $group !== '' ? [$v['id'], $group] : [$v['id'], $v['id']];
 $total = (int)val("SELECT COUNT(*) FROM products p WHERE $w", $args);
 $items = rows("SELECT p.*, c.name cat_name FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE $w ORDER BY p.id DESC LIMIT $per OFFSET " . (($pg - 1) * $per), $args);
 $groups = rows("SELECT grp, COUNT(*) n FROM collection_items WHERE vendor_id = ? AND grp <> '' GROUP BY grp ORDER BY grp", [$v['id']]);
-$sets = rows('SELECT s.*, (SELECT COUNT(*) FROM set_items WHERE set_id = s.id) n FROM product_sets s WHERE vendor_id = ? ORDER BY id DESC', [$v['id']]);
+$sets = rows('SELECT s.*, (SELECT COUNT(*) FROM set_items WHERE set_id = s.id) n, ' . SET_SUM_SQL . ' AS sum FROM product_sets s WHERE vendor_id = ? ORDER BY id DESC', [$v['id']]);
 $soc = json_decode($v['socials'] ?? '{}', true) ?: [];
 $followers = 0; foreach ($soc as $s) $followers += (int)($s['followers'] ?? 0);
 
@@ -32,7 +32,7 @@ layout($v['shop_name'], function () use ($v, $items, $total, $groups, $sets, $so
   </section>
 
   <?php if ($sets): ?><section class="sec" style="margin:40px 0 0"><div class="sec-h"><h2>Sets</h2></div>
-    <div class="mini-grid"><?php foreach ($sets as $s): ?><a class="card" href="/set/<?= $s['id'] ?>"><span class="badge info"><?= $s['n'] ?> items</span><h3 style="margin:10px 0 4px"><?= e($s['title']) ?></h3><div class="price"><?= money($s['price']) ?></div></a><?php endforeach; ?></div></section><?php endif; ?>
+    <div class="mini-grid"><?php foreach ($sets as $s): ?><a class="card" href="/set/<?= $s['id'] ?>"><span class="badge info"><?= $s['n'] ?> items</span><h3 style="margin:10px 0 4px"><?= e($s['title']) ?></h3><div class="price"><?= money($s['sum']) ?></div></a><?php endforeach; ?></div></section><?php endif; ?>
 
   <section class="sec" style="margin-top:40px">
     <div class="sec-h"><h2><?= $group !== '' ? e($group) : 'Products' ?></h2>

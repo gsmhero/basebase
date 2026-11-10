@@ -85,8 +85,34 @@ function eff_price(array $p, string $variant = ''): float {
             if (($v['name'] ?? '') === $variant && (float)($v['price'] ?? 0) > 0) return (float)$v['price'];
         }
     }
-    return (float)($p['promo_price'] ?? 0) > 0 ? (float)$p['promo_price'] : (float)$p['price'];
+    return (float)$p['price'];   // customers always see and pay the public price
 }
+/** What the supplier receives for one unit sold at $unit (the "promo" price, scaled for variants). */
+function base_price(array $p, float $unit): float {
+    $pr = (float)($p['promo_price'] ?? 0); $pp = (float)$p['price'];
+    return ($pr > 0 && $pp > 0 && $pr < $pp) ? round($unit * $pr / $pp, 2) : $unit;
+}
+function setting(string $k, string $d = ''): string {
+    static $c;
+    $c ??= array_column(rows('SELECT k, v FROM settings'), 'v', 'k');
+    return $c[$k] ?? $d;
+}
+function platform_pct(): float { return max(0.0, min(100.0, (float)setting('platform_commission', '10'))); }
+/** Split of the margin (price − supplier price): [admin fee, reseller share]. No reseller → admin keeps all of it. */
+function item_split(array $p, float $unit, int $qty, bool $hasReseller): array {
+    $margin = max(0.0, ($unit - base_price($p, $unit)) * $qty);
+    if (!$hasReseller) return [round($margin, 2), 0.0];
+    $fee = round($margin * platform_pct() / 100, 2);
+    return [$fee, round($margin - $fee, 2)];
+}
+function reseller_earn(array $p, ?float $unit = null): float {
+    $unit ??= (float)$p['price'];
+    return item_split($p, $unit, 1, true)[1];
+}
+function admin_user_id(): int {
+    return (int)(val('SELECT id FROM users WHERE email = ?', [mb_strtolower(env('ADMIN_EMAIL', 'admin@basebase.ru'))]) ?: val("SELECT id FROM users WHERE role = 'admin' ORDER BY id LIMIT 1"));
+}
+const SET_SUM_SQL = '(SELECT COALESCE(SUM(p.price * si.qty),0) FROM set_items si JOIN products p ON p.id = si.product_id WHERE si.set_id = s.id)';
 function categories_tree(): array {
     $all = rows('SELECT * FROM categories ORDER BY id');
     $tree = [];
@@ -190,12 +216,10 @@ function badge(string $status): string {
 function product_card(array $p, int $shop = 0): string {
     $price = eff_price($p);
     $href = '/product/' . $p['id'] . ($shop ? '?shop=' . $shop : '');
-    $promo = (float)($p['promo_price'] ?? 0) > 0;
     $o = '<article class="pcard"><a class="pcard-img" href="' . $href . '">' . pimg($p);
-    if ($promo) $o .= '<span class="tag-sale">−' . round(100 - $price / max(1, (float)$p['price']) * 100) . '%</span>';
     $o .= '</a><div class="pcard-body"><a class="pcard-title" href="' . $href . '">' . e($p['title']) . '</a>';
     if (!empty($p['cat_name'])) $o .= '<div class="muted sm">' . e($p['cat_name']) . '</div>';
-    $o .= '<div class="pcard-foot"><div class="price">' . money($price) . ($promo ? ' <s>' . money($p['price']) . '</s>' : '') . '</div>';
+    $o .= '<div class="pcard-foot"><div class="price">' . money($price) . '</div>';
     $o .= '<form method="post" action="/do/wish">' . csrf_field() . '<input type="hidden" name="id" value="' . $p['id'] . '"><button class="icon-btn" title="Watch later">' . ico('clock', 18) . '</button></form></div></div></article>';
     return $o;
 }
@@ -296,6 +320,7 @@ function cabinet_open(array $u, string $path): void {
     $items[] = ['/cabinet/messenger', 'msg', 'Messenger'];
     if (can_supply($u) || can_resell($u)) $items[] = ['/cabinet/profile', 'wallet', 'Profile & wallet'];
     if (can_resell($u)) $items[] = ['/cabinet/collection', 'layers', 'Product collection'];
+    if (can_supply($u) || can_resell($u)) $items[] = ['/cabinet/blog', 'edit', 'My blog'];
     $items[] = ['/cabinet/settings', 'settings', 'Settings'];
     if ($u['role'] === 'admin') $items[] = ['/admin/users', 'users', 'Users manager'];
     ?>
