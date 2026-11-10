@@ -16,7 +16,7 @@ $gallery = json_decode($p['gallery'] ?? '[]', true) ?: [];
 $attrs = json_decode($p['attrs'] ?? '[]', true) ?: [];
 $stock = $variants ? array_sum(array_column($variants, 'stock')) : (int)$p['stock'];
 $promo = false; // promo price is the supplier price and is never shown to customers
-$ref = $shop ? row("SELECT shop_name, slug FROM vendors WHERE id = ? AND id <> ?", [$shop, $p["vendor_id"]]) : null;
+$ref = $shop ? row("SELECT shop_name, slug, user_id FROM vendors WHERE id = ? AND id <> ?", [$shop, $p["vendor_id"]]) : null;
 $path = category_path($p['category_id'] ? (int)$p['category_id'] : null);
 [$rn, $ravg] = rating_of($id);
 $revs = rows('SELECT r.*, u.name FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.product_id = ? ORDER BY r.id DESC LIMIT 30', [$id]);
@@ -67,13 +67,20 @@ layout($p['title'], function () use ($p, $variants, $gallery, $groups, $stock, $
         <?php if ($isOwner && (float)$p['promo_price'] > 0): ?><div class="r"><span class="muted">You receive (supplier price)</span><b><?= money($p['promo_price']) ?></b></div><?php endif; ?>
       </div>
 
+      <?php if ($ref): /* opened from a blog, shop or shared link: show the blogger, hide the product author */ ?>
+      <div class="owner" style="margin-bottom:18px">
+        <span class="av"><?= e(mb_strtoupper(mb_substr($ref['shop_name'], 0, 1))) ?></span>
+        <div style="flex:1;min-width:0"><div class="muted sm">Recommended by</div><a class="link" href="/shop/<?= e($ref['slug']) ?>"><b><?= e($ref['shop_name']) ?></b></a></div>
+        <a class="btn sm" href="/shop/<?= e($ref['slug']) ?>" style="flex:none">Visit shop</a>
+      </div>
+      <?php else: ?>
       <div class="owner" style="margin-bottom:18px">
         <span class="av"><?= e(mb_strtoupper(mb_substr($p['shop_name'], 0, 1))) ?></span>
         <div style="flex:1;min-width:0"><div class="muted sm">Product author</div><a class="link" href="/shop/<?= e($p['slug']) ?>"><b><?= e($p['shop_name']) ?></b></a>
-          <?php if ($p['blogging_type']): ?><span class="muted sm"> · <?= e($p['blogging_type']) ?></span><?php endif; ?>
-          <?php if ($ref): ?><div class="muted sm">Recommended in <a class="link" href="/shop/<?= e($ref['slug']) ?>" style="color:var(--accent-d)"><?= e($ref['shop_name']) ?></a></div><?php endif; ?></div>
+          <?php if ($p['blogging_type']): ?><span class="muted sm"> · <?= e($p['blogging_type']) ?></span><?php endif; ?></div>
         <a class="btn sm" href="/shop/<?= e($p['slug']) ?>" style="flex:none">Visit shop</a>
       </div>
+      <?php endif; ?>
 
       <form method="post" action="/do/cart-add" class="buybar-form">
         <?= csrf_field() ?><input type="hidden" name="product_id" value="<?= $id ?>"><input type="hidden" name="shop" value="<?= $shop ?>">
@@ -90,7 +97,7 @@ layout($p['title'], function () use ($p, $variants, $gallery, $groups, $stock, $
           <form method="post" action="/do/collect"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn <?= $collected ? 'on' : 'dark' ?>" data-on="Collected ✓ — remove" data-off="Collect"><?= ico('layers', 16) ?> <span class="lbl"><?= $collected ? 'Collected ✓ — remove' : 'Collect' ?></span></button></form>
         <?php elseif (!$u): ?><a class="btn" href="/register?as=vendor"><?= ico('layers', 16) ?> Collect &amp; earn</a><?php endif; ?>
         <form method="post" action="/do/wish"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn<?= wished($id) ? ' on' : '' ?>" data-on="Saved ✓" data-off="Watch later"><?= ico('clock', 16) ?> <span class="lbl"><?= wished($id) ? 'Saved ✓' : 'Watch later' ?></span></button></form>
-        <?php if ($u && (int)$p['owner_uid'] !== (int)$u['id']): ?><a class="btn" href="/cabinet/messenger/<?= (int)$p['owner_uid'] ?>?product=<?= $id ?>"><?= ico('msg', 16) ?> Ask seller</a><?php endif; ?>
+        <?php $askUid = $ref ? (int)$ref['user_id'] : (int)$p['owner_uid']; if ($u && $askUid !== (int)$u['id']): ?><a class="btn" href="/cabinet/messenger/<?= $askUid ?>?product=<?= $id ?>"><?= ico('msg', 16) ?> Ask <?= $ref ? e($ref['shop_name']) : 'seller' ?></a><?php endif; ?>
       </div>
 
       <?php if ($p['description']): ?><div class="attrs"><h4>Description</h4><div><?= nl2br(e($p['description'])) ?></div></div><?php endif; ?>
