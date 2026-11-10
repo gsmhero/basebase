@@ -13,7 +13,7 @@ if ($sub === '') {
     }
     $list = rows('SELECT po.*, (SELECT COUNT(*) FROM post_items WHERE post_id = po.id) n FROM posts po WHERE po.vendor_id = ? OR ? ORDER BY po.id DESC', [$vid, $isAdmin ? 1 : 0]);
     layout('My blog', function () use ($list) { ?>
-    <div class="card-h"><div><h2 style="margin:0">My blog</h2><span class="muted"><?= count($list) ?> posts</span></div><a class="btn gold" href="/cabinet/blog/new"><?= ico('plus', 16) ?> New post</a></div>
+    <div class="card-h"><div><h2 style="margin:0">My blog</h2><span class="muted"><?= count($list) ?> posts</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="/shop/<?= e($GLOBALS['u']['slug'] ?? '') ?>#blog"><?= ico('eye', 16) ?> Public profile</a><a class="btn gold" href="/cabinet/blog/new"><?= ico('plus', 16) ?> New post</a></div></div>
     <?php if ($list): ?><section class="card scroll"><table class="tbl"><thead><tr><th>Post</th><th>Status</th><th class="num">Attached</th><th class="num">Views</th><th>Date</th><th></th></tr></thead><tbody>
       <?php foreach ($list as $po): ?><tr><td><a class="link" href="/blog/<?= $po['id'] ?>"><b><?= e(mb_strimwidth($po['title'], 0, 56, '…')) ?></b></a></td><td><?= badge($po['status'] === 'published' ? 'active' : 'draft') ?></td><td class="num"><?= $po['n'] ?></td><td class="num"><?= num($po['views']) ?></td><td class="muted"><?= date('d.m.Y', strtotime($po['created_at'])) ?></td>
         <td class="right" style="white-space:nowrap"><a class="icon-btn" style="display:inline-grid" href="/cabinet/blog/<?= $po['id'] ?>" title="Edit"><?= ico('edit', 18) ?></a>
