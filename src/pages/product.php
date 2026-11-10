@@ -87,9 +87,9 @@ layout($p['title'], function () use ($p, $variants, $gallery, $groups, $stock, $
       </form>
       <div class="buybar" style="margin-top:12px">
         <?php if (can_resell($u) && (int)$p['owner_uid'] !== (int)$u['id']): ?>
-          <form method="post" action="/do/collect"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn <?= $collected ? '' : 'dark' ?>"><?= ico('layers', 16) ?> <?= $collected ? 'Collected ✓ — remove' : 'Collect' ?></button></form>
+          <form method="post" action="/do/collect"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn <?= $collected ? 'on' : 'dark' ?>" data-on="Collected ✓ — remove" data-off="Collect"><?= ico('layers', 16) ?> <span class="lbl"><?= $collected ? 'Collected ✓ — remove' : 'Collect' ?></span></button></form>
         <?php elseif (!$u): ?><a class="btn" href="/register?as=vendor"><?= ico('layers', 16) ?> Collect &amp; earn</a><?php endif; ?>
-        <form method="post" action="/do/wish"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn"><?= ico('clock', 16) ?> Watch later</button></form>
+        <form method="post" action="/do/wish"><?= csrf_field() ?><input type="hidden" name="id" value="<?= $id ?>"><button class="btn<?= wished($id) ? ' on' : '' ?>" data-on="Saved ✓" data-off="Watch later"><?= ico('clock', 16) ?> <span class="lbl"><?= wished($id) ? 'Saved ✓' : 'Watch later' ?></span></button></form>
         <?php if ($u && (int)$p['owner_uid'] !== (int)$u['id']): ?><a class="btn" href="/cabinet/messenger/<?= (int)$p['owner_uid'] ?>?product=<?= $id ?>"><?= ico('msg', 16) ?> Ask seller</a><?php endif; ?>
       </div>
 

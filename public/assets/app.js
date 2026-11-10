@@ -77,6 +77,39 @@
     pr.addEventListener('input', calc); pm.addEventListener('input', calc); calc();
   }
 
+  // toasts + in-place toggles (Watch later, Collect): no page jump
+  const toast = (msg, type) => {
+    let box = $('#toasts');
+    if (!box) { box = document.createElement('div'); box.id = 'toasts'; box.setAttribute('aria-live', 'polite'); document.body.append(box); }
+    const t = document.createElement('div'); t.className = 'toast ' + (type || ''); t.textContent = msg; box.append(t);
+    requestAnimationFrame(() => t.classList.add('in'));
+    setTimeout(() => { t.classList.remove('in'); setTimeout(() => t.remove(), 300); }, 2600);
+  };
+  document.addEventListener('submit', async e => {
+    const f = e.target;
+    if (!/\/do\/(wish|collect)$/.test(f.getAttribute('action') || '')) return;
+    e.preventDefault();
+    const btn = $('button', f); if (btn) btn.disabled = true;
+    try {
+      const r = await fetch(f.action, { method: 'POST', body: new FormData(f), headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' });
+      if (r.status === 401) { location.href = '/login'; return; }
+      if (!r.ok) { toast('Something went wrong. Please try again.', 'bad'); return; }
+      const j = await r.json();
+      (j.msgs || []).forEach(([type, msg]) => toast(msg, type));
+      const on = j.state && j.state.on;
+      if (btn && j.state && typeof on === 'boolean') {
+        btn.classList.toggle('on', on);
+        if (f.action.endsWith('/collect')) btn.classList.toggle('dark', !on);
+        const lbl = $('.lbl', btn); if (lbl && btn.dataset.on) lbl.textContent = on ? btn.dataset.on : btn.dataset.off;
+      }
+      if (j.state && typeof j.state.count === 'number') {
+        const tool = $('.tool[href="/watch"]'); const old = tool && $('i', tool);
+        if (tool) { if (j.state.count) { if (old) old.textContent = j.state.count; else tool.insertAdjacentHTML('beforeend', '<i>' + j.state.count + '</i>'); } else if (old) old.remove(); }
+      }
+    } catch (err) { f.submit(); }
+    finally { if (btn) btn.disabled = false; }
+  });
+
   // chat scroll
   const m = $('.msgs'); if (m) m.scrollTop = m.scrollHeight;
 })();

@@ -251,6 +251,14 @@ input[type=checkbox],input[type=radio]{width:auto}
 .wallet-n{overflow-wrap:anywhere}
 .mini-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 
+/* toasts & toggled states */
+#toasts{position:fixed;left:50%;bottom:24px;translate:-50% 0;z-index:100;display:grid;gap:8px;justify-items:center;pointer-events:none;width:min(420px,calc(100% - 32px))}
+.toast{pointer-events:auto;background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:var(--sh-lg);opacity:0;transform:translateY(12px);transition:.25s}
+.toast.in{opacity:1;transform:none}.toast.bad,.toast.warn{background:var(--bad);color:#fff}
+.icon-btn.on{color:var(--accent-d);background:var(--accent-soft)}
+.icon-btn.on .ico{fill:currentColor;fill-opacity:.18}
+.btn.on:not(.dark){border-color:var(--accent);background:var(--accent-soft);color:var(--accent-d)}
+
 /* blog */
 .posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px}
 .post-card{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);transition:.2s}

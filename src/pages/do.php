@@ -3,7 +3,10 @@
 if (!is_post()) redirect('/');
 csrf_check();
 $act = $seg[1] ?? '';
+$ajax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch';
+$state = null;
 $u = me();
+if (!$u && $ajax) { header('Content-Type: application/json'); http_response_code(401); exit(json_encode(['login' => '/login'])); }
 if (!$u) { flash('Please sign in first.', 'warn'); $_SESSION['next'] = parse_url($_SERVER['HTTP_REFERER'] ?? '/', PHP_URL_PATH) ?: '/'; redirect('/login'); }
 if ($u['sub'] && (in_array($act, ['wish', 'cart-add', 'set-add', 'cart-set', 'cart-del', 'review'], true) || ($act === 'collect' && !has_perm($u, 'products')))) deny();
 $id = (int)($_POST['id'] ?? 0);
@@ -25,8 +28,8 @@ function add_to_cart(int $uid, array $p, int $shop, string $variant, int $qty, ?
 
 switch ($act) {
     case 'wish':
-        if (val('SELECT 1 FROM wishlist WHERE user_id=? AND product_id=?', [$u['id'], $id])) { q('DELETE FROM wishlist WHERE user_id=? AND product_id=?', [$u['id'], $id]); flash('Removed from Watch later.'); }
-        else { q('INSERT IGNORE INTO wishlist (user_id, product_id) VALUES (?,?)', [$u['id'], $id]); flash('Saved to Watch later.'); }
+        if (val('SELECT 1 FROM wishlist WHERE user_id=? AND product_id=?', [$u['id'], $id])) { q('DELETE FROM wishlist WHERE user_id=? AND product_id=?', [$u['id'], $id]); flash('Removed from Watch later.'); $state = ['on' => false]; }
+        else { q('INSERT IGNORE INTO wishlist (user_id, product_id) VALUES (?,?)', [$u['id'], $id]); flash('Saved to Watch later.'); $state = ['on' => true]; }
         break;
 
     case 'collect':
@@ -34,8 +37,8 @@ switch ($act) {
         $p = row('SELECT * FROM products WHERE id = ? AND status = "active"', [$id]);
         if (!$p) break;
         if ((int)$p['vendor_id'] === (int)$u['vid']) { flash('This is your own product.', 'warn'); break; }
-        if (val('SELECT 1 FROM collection_items WHERE vendor_id=? AND product_id=?', [$u['vid'], $id])) { q('DELETE FROM collection_items WHERE vendor_id=? AND product_id=?', [$u['vid'], $id]); flash('Removed from your collection.'); }
-        else { q('INSERT IGNORE INTO collection_items (vendor_id, product_id) VALUES (?,?)', [$u['vid'], $id]); flash('Added to your collection — find it under Product collection.'); }
+        if (val('SELECT 1 FROM collection_items WHERE vendor_id=? AND product_id=?', [$u['vid'], $id])) { q('DELETE FROM collection_items WHERE vendor_id=? AND product_id=?', [$u['vid'], $id]); flash('Removed from your collection.'); $state = ['on' => false]; }
+        else { q('INSERT IGNORE INTO collection_items (vendor_id, product_id) VALUES (?,?)', [$u['vid'], $id]); flash('Added to your collection.'); $state = ['on' => true]; }
         break;
 
     case 'cart-add':
@@ -75,5 +78,11 @@ switch ($act) {
             flash('Thanks for your review!');
         }
         redirect('/product/' . $pid);
+}
+if ($ajax) {
+    header('Content-Type: application/json');
+    $st = $state ?? [];
+    if ($act === 'wish') $st['count'] = (int)val('SELECT COUNT(*) FROM wishlist WHERE user_id = ?', [$u['id']]);
+    exit(json_encode(['ok' => true, 'msgs' => flashes(), 'state' => $st]));
 }
 back('/');

@@ -243,7 +243,7 @@ function product_card(array $p, int $shop = 0): string {
     $o .= '</a><div class="pcard-body"><a class="pcard-title" href="' . $href . '">' . e($p['title']) . '</a>';
     if (!empty($p['cat_name'])) $o .= '<div class="muted sm">' . e($p['cat_name']) . '</div>';
     $o .= '<div class="pcard-foot"><div class="price">' . money($price) . '</div>';
-    $o .= '<form method="post" action="/do/wish">' . csrf_field() . '<input type="hidden" name="id" value="' . $p['id'] . '"><button class="icon-btn" title="Watch later">' . ico('clock', 18) . '</button></form></div></div></article>';
+    $o .= '<form method="post" action="/do/wish">' . csrf_field() . '<input type="hidden" name="id" value="' . $p['id'] . '"><button class="icon-btn' . (wished((int)$p['id']) ? ' on' : '') . '" title="Watch later">' . ico('clock', 18) . '</button></form></div></div></article>';
     return $o;
 }
 function pager(int $total, int $per, int $page, array $qs = []): string {
@@ -362,3 +362,12 @@ function cabinet_open(array $u, string $path): void {
   </aside>
   <div class="cab-main"><div>
 <?php }
+
+function wished(int $pid): bool {
+    static $s;
+    if ($s === null) {
+        $u = me();
+        $s = ($u && !$u['sub']) ? array_flip(array_column(rows('SELECT product_id FROM wishlist WHERE user_id = ?', [$u['id']]), 'product_id')) : [];
+    }
+    return isset($s[$pid]);
+}
