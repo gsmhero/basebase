@@ -80,7 +80,7 @@ layout('Profile & wallet', function () use ($v, $bal, $tx, $nets, $total, $types
       <?= field('Shop / blog name', 'shop_name', $v['shop_name']) ?>
       <?= field('Blogging type', 'blogging_type', $v['blogging_type'] ?? '', 'text', 'placeholder="Beauty, tech, lifestyle…"') ?>
       <label class="fld"><span>About</span><textarea name="bio" rows="3"><?= e($v['bio'] ?? '') ?></textarea></label>
-      <h4 style="margin-top:6px">Social networks</h4>
+      <div class="soc-row" style="margin:6px 0 8px"><h4 style="margin:0;grid-column:1/3">Social networks</h4><span class="muted sm" style="font-weight:600;padding-left:2px">Followers</span></div>
       <?php foreach ($nets as $name => $n): ?><div class="soc-row"><input type="hidden" name="net[]" value="<?= e($name) ?>"><b><?= e($name) ?></b><input name="url[]" value="<?= e($n['url'] ?? '') ?>" placeholder="Profile URL"><input name="fol[]" type="number" min="0" value="<?= e($n['followers'] ?? 0) ?>" placeholder="Followers"></div><?php endforeach; ?>
       <div class="row" style="justify-content:space-between;padding:6px 0 14px;border-top:1px solid var(--line);flex-wrap:nowrap"><span class="muted">Total followers</span><b><?= num($total) ?></b></div>
       <div class="share-box"><input name="new_net" placeholder="Network name"><button class="btn sm" style="flex:none">Add network</button></div>
