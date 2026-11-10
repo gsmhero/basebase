@@ -251,6 +251,12 @@ input[type=checkbox],input[type=radio]{width:auto}
 .wallet-n{overflow-wrap:anywhere}
 .mini-grid{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 
+/* compact tabs: tighter type, no scroll arrows */
+.tabs{gap:2px;scrollbar-width:none;-ms-overflow-style:none}
+.tabs::-webkit-scrollbar{display:none;width:0;height:0}
+.tabs a,.tabs button{padding:9px 11px;font-size:13px;font-weight:600;letter-spacing:-.025em;font-stretch:condensed}
+.tabs button .muted{font-size:11px;letter-spacing:0;font-weight:500}
+
 /* toasts & toggled states */
 #toasts{position:fixed;left:50%;bottom:24px;translate:-50% 0;z-index:100;display:grid;gap:8px;justify-items:center;pointer-events:none;width:min(420px,calc(100% - 32px))}
 .toast{pointer-events:auto;background:var(--ink);color:var(--bg);padding:11px 18px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:var(--sh-lg);opacity:0;transform:translateY(12px);transition:.25s}
