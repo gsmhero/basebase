@@ -17,6 +17,14 @@ function missing_required(array $type, array $data): array {
     return $miss;
 }
 
+/** Payout gateway stub (test mode). Returns ['ok'|'unknown'|'error', message]. */
+function payout_send(float $amt, array $data): array {
+    $cents = (int)round(fmod($amt, 1) * 100);
+    if ($cents === 99) return ['unknown', ''];                                   // test: unknown error -> pending for admin
+    if ($cents === 98) return ['error', 'The bank rejected the transfer (test).']; // test: real error shown to user
+    return ['ok', ''];
+}
+
 if (is_post()) {
     csrf_check();
     $do = $_POST['do'] ?? '';
@@ -56,7 +64,14 @@ if (is_post()) {
         if ($miss) flash('Complete the required fields in Personal data first (' . count($miss) . ' missing, e.g. “' . $miss[0] . '”).', 'warn');
         elseif ($amt < 100) flash('Minimum withdrawal is 100 ₽.', 'bad');
         elseif ($amt > $bal) flash('Not enough funds on the wallet.', 'bad');
-        else { q("INSERT INTO wallet_tx (user_id, amount, type, status, note) VALUES (?,?,'withdraw','pending',?)", [$uid, -$amt, 'Withdrawal request (' . $tabLabel[$ptype] . ')']); flash('Withdrawal requested. We will process it shortly.'); }
+        else {
+            // Automatic payout to the user's bank account. Replace payout_send() with the real payment system call.
+            [$res, $perr] = payout_send($amt, $personal[$ptype] ?? []);
+            $note = 'Withdrawal to bank (' . $tabLabel[$ptype] . ')';
+            if ($res === 'ok') { q("INSERT INTO wallet_tx (user_id, amount, type, status, note) VALUES (?,?,'withdraw','done',?)", [$uid, -$amt, $note]); flash(money($amt) . ' sent to your bank account.'); }
+            elseif ($res === 'unknown') { q("INSERT INTO wallet_tx (user_id, amount, type, status, note) VALUES (?,?,'withdraw','pending',?)", [$uid, -$amt, $note . ' — under review']); notify(admin_user_id(), 'Payout needs review: ' . money($amt), '/admin/users'); flash('The payment system did not confirm the transfer. It is under review by the administrator.', 'warn'); }
+            else flash('Transfer failed: ' . $perr . ' Your balance was not changed.', 'bad');
+        }
     }
     redirect('/cabinet/profile');
 }
@@ -74,6 +89,7 @@ layout('Profile & wallet', function () use ($v, $bal, $tx, $nets, $total, $types
   <div class="span-5" style="display:grid;gap:22px;align-content:start">
     <section class="card"><h3>Wallet</h3><div class="wallet-n"><?= money($bal) ?></div><p class="muted sm">Payout as: <b><?= e($tabLabel[$ptype]) ?></b> · <?= $progress[$ptype][0] ?>/<?= $progress[$ptype][1] ?> required fields filled</p>
       <form method="post" class="share-box"><?= csrf_field() ?><input type="hidden" name="do" value="withdraw"><input name="amount" type="number" min="100" step="0.01" placeholder="Amount, ₽" required><button class="btn dark" style="flex:none">Withdraw money</button></form>
+      <p class="muted sm" style="margin:8px 0 0">Sent to your bank account automatically. Test mode: amounts ending in .98 simulate a bank error, .99 an unknown error (goes to admin review).</p>
       <?php if ($tx): ?><div style="margin-top:16px"><?php foreach ($tx as $t): ?><div class="row" style="flex-wrap:nowrap;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line)"><span class="sm"><?= e(mb_strimwidth((string)$t['note'], 0, 28, '…')) ?> <?= $t['status'] !== 'done' ? badge($t['status']) : '' ?></span><b class="sm" style="flex:none;color:var(--<?= $t['amount'] >= 0 ? 'ok' : 'bad' ?>)"><?= ($t['amount'] >= 0 ? '+' : '') . money($t['amount']) ?></b></div><?php endforeach; ?></div><?php endif; ?></section>
 
     <form class="card" method="post"><?= csrf_field() ?><input type="hidden" name="do" value="profile"><div class="card-h"><h3>Public profile</h3><button class="btn sm dark">Save</button></div>
