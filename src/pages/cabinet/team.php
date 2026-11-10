@@ -17,7 +17,8 @@ if (is_post()) {
         elseif (val('SELECT 1 FROM invites WHERE email = ? AND used_at IS NULL', [$email])) flash('This email already has a pending invite.', 'warn');
         else {
             q('INSERT INTO invites (owner_id, email, name, perms, token) VALUES (?,?,?,?,?)', [$oid, $email, mb_substr(trim((string)($_POST['name'] ?? '')), 0, 120), $perms, bin2hex(random_bytes(24))]);
-            flash('Invite created — copy the link below and send it to ' . $email . '.');
+            $tok = (string)val('SELECT token FROM invites WHERE owner_id = ? AND email = ? AND used_at IS NULL ORDER BY id DESC', [$oid, $email]);
+            flash(mail_invite($email, (string)val('SELECT shop_name FROM vendors WHERE user_id = ?', [$oid]), $tok) ? 'Invite sent to ' . $email . '. You can also copy the link below.' : 'Invite created, but the email could not be sent — copy the link below and send it to ' . $email . '.');
         }
     } elseif ($do === 'revoke') { q('DELETE FROM invites WHERE id = ? AND owner_id = ? AND used_at IS NULL', [$id, $oid]); flash('Invite revoked.'); }
     elseif ($do === 'perms') {

@@ -25,6 +25,7 @@ if (is_post()) {
             $lines = array_map(fn($l) => ['pid' => $l['pid'], 'qty' => (int)$l['qty'], 'variant' => $l['variant'], 'unit' => (float)$l['unit'], 'shop_id' => (int)$l['shop_id'], 'title' => $l['title']], $lines);
             $oid = place_order((int)$u['id'], $lines, compact('name', 'phone', 'address', 'delivery', 'notes'), $pay);
             q('DELETE FROM cart_items WHERE user_id = ?', [$u['id']]);
+            $mailed = mail_order($oid);
             flash('Order BB-' . (1000 + $oid) . ($pay === 'test' ? ' paid with test payment (no real money). Mark items as Delivered to credit wallets.' : ' placed! The seller will contact you shortly.'));
             redirect('/cabinet/orders/' . $oid);
         } catch (RuntimeException $e) { $err = $e->getMessage(); }

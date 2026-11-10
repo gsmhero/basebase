@@ -3,6 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/../src/bootstrap.php';
 require ROOT . '/src/helpers.php';
 require ROOT . '/src/migrate.php';
+require ROOT . '/src/mail.php';
 
 set_exception_handler(function (Throwable $e) {
     http_response_code(500);
@@ -18,7 +19,7 @@ $seg = $path === '' ? [] : explode('/', $path);
 $page = $seg[0] ?? 'home';
 $pages = ROOT . '/src/pages';
 
-$simple = ['home', 'faq', 'blogs', 'login', 'register', 'logout', 'cart', 'watch', 'product', 'shop', 'set', 'do', 'blog', 'invite', 'embed'];
+$simple = ['home', 'faq', 'blogs', 'login', 'register', 'logout', 'cart', 'watch', 'product', 'shop', 'set', 'do', 'blog', 'invite', 'embed', 'reset'];
 $file = null;
 if ($page === 'products') $file = "$pages/catalog.php";
 elseif (in_array($page, $simple, true)) $file = "$pages/$page.php";

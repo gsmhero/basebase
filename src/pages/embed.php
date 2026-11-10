@@ -74,7 +74,8 @@ if ($items && is_post()) {
                 $cid = (int)db()->lastInsertId(); $guestNew = true;
             }
             $oid = place_order($cid, $lines, ['name' => $cname, 'phone' => $phone, 'address' => $address, 'delivery' => $delivery, 'notes' => $notes], $pay);
-            $done = ['oid' => $oid, 'pay' => $pay, 'total' => array_sum(array_map(fn($l) => $l['unit'] * $l['qty'], $lines))];
+            $mailed = mail_order($oid);
+            $done = ['oid' => $oid, 'mailed' => $mailed, 'pay' => $pay, 'total' => array_sum(array_map(fn($l) => $l['unit'] * $l['qty'], $lines))];
         } catch (RuntimeException $e) { $err = $e->getMessage(); }
     }
 }
@@ -120,7 +121,7 @@ label.f{display:block;margin:10px 0 0}label.f span{display:block;font-size:12px;
 <?php elseif ($done): ?>
   <div class="ok"><h2>Thank you! Order BB-<?= 1000 + $done['oid'] ?> placed</h2>
     <p><?= $done['pay'] === 'test' ? 'Paid ' : 'To pay on delivery: ' ?><b><?= money($done['total']) ?></b><?= $done['pay'] === 'test' ? ' (test payment, no real money)' : '' ?>. The seller will contact you shortly.</p>
-    <?php if ($guestNew): ?><p class="m">We created an account for <?= e($email) ?>. To track your order, <a href="<?= e($host) ?>/register?as=customer" target="_blank" rel="noopener" style="color:#8a6420;font-weight:700">register on basebase.ru</a> with the same email.</p><?php endif; ?>
+    <p class="m"><?= $done['mailed'] ? 'We sent the order details to <b>' . e($email) . '</b>' . ($guestNew ? ' with a link to set your password and track the order.' : '.') : 'We could not send the confirmation email, but your order is saved.' ?></p>
     <a class="btn" style="display:inline-block;text-decoration:none" href="<?= e($link) ?>" target="_blank" rel="noopener">More on basebase.ru</a></div>
 <?php else: ?>
   <?php if ($err): ?><div class="err"><?= e($err) ?></div><?php endif; ?>

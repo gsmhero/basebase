@@ -30,6 +30,7 @@ layout('Login', function () use ($err) { ?>
     <?= field('Email', 'email', $_POST['email'] ?? '', 'email', 'required autofocus autocomplete="username"') ?>
     <?= field('Password', 'password', '', 'password', 'required autocomplete="current-password"') ?>
     <button class="btn dark block lg">Sign in</button>
+    <p class="center" style="margin:12px 0 0"><a class="link sm" href="/reset" style="color:var(--accent-d)">Forgot your password?</a></p>
   </form>
   <p class="muted center" style="margin:18px 0 0">New here? <a class="link" href="/register" style="color:var(--accent-d)">Create an account</a></p>
 </div></div></div>

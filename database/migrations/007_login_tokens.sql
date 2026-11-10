@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS login_tokens (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  purpose VARCHAR(12) NOT NULL,
+  expires_at INT UNSIGNED NOT NULL,
+  used_at INT UNSIGNED NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_hash (token_hash),
+  KEY idx_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB
