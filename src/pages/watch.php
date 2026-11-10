@@ -1,5 +1,5 @@
 <?php
-$u = require_login();
+$u = owner_only(require_login());
 $items = rows('SELECT p.*, c.name cat_name FROM wishlist w JOIN products p ON p.id = w.product_id LEFT JOIN categories c ON c.id = p.category_id WHERE w.user_id = ? ORDER BY w.created_at DESC', [$u['id']]);
 layout('Watch later', function () use ($items) { ?>
 <div class="wrap">

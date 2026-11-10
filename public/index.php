@@ -18,13 +18,13 @@ $seg = $path === '' ? [] : explode('/', $path);
 $page = $seg[0] ?? 'home';
 $pages = ROOT . '/src/pages';
 
-$simple = ['home', 'faq', 'blogs', 'login', 'register', 'logout', 'cart', 'watch', 'product', 'shop', 'set', 'do', 'blog'];
+$simple = ['home', 'faq', 'blogs', 'login', 'register', 'logout', 'cart', 'watch', 'product', 'shop', 'set', 'do', 'blog', 'invite'];
 $file = null;
 if ($page === 'products') $file = "$pages/catalog.php";
 elseif (in_array($page, $simple, true)) $file = "$pages/$page.php";
 elseif ($page === 'cabinet') {
     $sub = $seg[1] ?? 'dash';
-    if (in_array($sub, ['dash', 'products', 'collection', 'orders', 'stats', 'messenger', 'profile', 'settings', 'notifications', 'blog'], true)) $file = "$pages/cabinet/$sub.php";
+    if (in_array($sub, ['dash', 'products', 'collection', 'orders', 'stats', 'messenger', 'profile', 'settings', 'notifications', 'blog', 'team'], true)) $file = "$pages/cabinet/$sub.php";
 } elseif ($page === 'admin') {
     $sub = $seg[1] ?? 'users';
     if (in_array($sub, ['users', 'seed'], true)) $file = "$pages/admin/$sub.php";

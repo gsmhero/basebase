@@ -1,5 +1,5 @@
 <?php
-$u = require_login();
+$u = require_perm(require_login(), 'orders');
 $vid = (int)$u['vid'];
 $isAdmin = $u['role'] === 'admin';
 $statuses = ['pending' => 'Pending', 'prepare' => 'Prepare', 'shipped' => 'Shipped', 'on_delivery' => 'On delivery', 'delivered' => 'Delivered', 'archived' => 'Archived', 'returned' => 'Returned'];

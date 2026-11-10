@@ -1,5 +1,6 @@
 <?php
 $u = require_login();
+if ($u['sub']) { foreach (['products' => '/cabinet/products', 'orders' => '/cabinet/orders', 'messages' => '/cabinet/messenger', 'blog' => '/cabinet/blog'] as $k => $href) if (has_perm($u, $k)) redirect($href); deny(); }
 $vid = (int)$u['vid'];
 $supply = can_supply($u); $resell = can_resell($u);
 

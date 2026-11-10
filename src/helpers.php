@@ -47,12 +47,35 @@ function me(bool $reload = false): ?array {
     if ($u === false || $reload) {
         $u = null;
         if (!empty($_SESSION['uid'])) {
-            $u = row('SELECT u.*, v.id AS vid, v.slug, v.shop_name, v.avatar, v.commission_pct FROM users u LEFT JOIN vendors v ON v.user_id = u.id WHERE u.id = ?', [$_SESSION['uid']]);
+            $sql = 'SELECT u.*, v.id AS vid, v.slug, v.shop_name, v.avatar, v.commission_pct FROM users u LEFT JOIN vendors v ON v.user_id = u.id WHERE u.id = ?';
+            $u = row($sql, [$_SESSION['uid']]);
+            if ($u && $u['owner_id']) {
+                // staff account: acts as its owner's shop, limited to the granted sections
+                $o = row($sql, [$u['owner_id']]);
+                if (!$o || $o['role'] === 'customer' || $o['owner_id']) $u = null;
+                else {
+                    $o['sub'] = true; $o['sub_id'] = (int)$u['id'];
+                    $o['name'] = $u['name'] ?: 'Staff';
+                    $o['perms'] = array_values(array_filter(explode(',', (string)$u['perms'])));
+                    $o['role'] = $o['role'] === 'admin' ? 'supplier' : $o['role'];
+                    $u = $o;
+                }
+            } elseif ($u) { $u['sub'] = false; $u['sub_id'] = null; $u['perms'] = ['products', 'orders', 'messages', 'blog']; }
             if (!$u) unset($_SESSION['uid']);
         }
     }
     return $u;
 }
+const PERMS = ['products' => 'Products (add, edit, hide from stock)', 'orders' => 'Orders', 'messages' => 'Messaging', 'blog' => 'Blog posting'];
+function has_perm(?array $u, string $p): bool { return $u && in_array($p, $u['perms'], true); }
+function deny(): never {
+    http_response_code(403);
+    layout('No access', fn() => print('<section class="wrap empty"><h2>No access</h2><p>Your account does not include this section.</p><a class="btn dark" href="/cabinet">Back to cabinet</a></section>'));
+    exit;
+}
+function require_perm(array $u, string $p): array { if (!has_perm($u, $p)) deny(); return $u; }
+function owner_only(array $u): array { if ($u['sub']) deny(); return $u; }
+function role_label(string $r): string { return ['customer' => 'Customer', 'vendor' => 'Reseller', 'supplier' => 'Supplier', 'admin' => 'Administrator'][$r] ?? $r; }
 function require_login(): array {
     $u = me();
     if (!$u) { flash('Please sign in first.', 'warn'); $_SESSION['next'] = $_SERVER['REQUEST_URI'] ?? '/'; redirect('/login'); }
@@ -241,10 +264,12 @@ function layout(string $title, callable $body, array $opt = []): void {
     $u = me();
     $counts = ['n' => 0, 'm' => 0, 'c' => 0, 'w' => 0];
     if ($u) {
-        $counts['n'] = (int)val('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0', [$u['id']]);
-        $counts['m'] = (int)val('SELECT COUNT(*) FROM messages WHERE to_id = ? AND is_read = 0', [$u['id']]);
-        $counts['c'] = (int)val('SELECT COALESCE(SUM(qty),0) FROM cart_items WHERE user_id = ?', [$u['id']]);
-        $counts['w'] = (int)val('SELECT COUNT(*) FROM wishlist WHERE user_id = ?', [$u['id']]);
+        if (!$u['sub'] || has_perm($u, 'orders') || has_perm($u, 'messages')) $counts['n'] = (int)val('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0', [$u['id']]);
+        if (has_perm($u, 'messages')) $counts['m'] = (int)val('SELECT COUNT(*) FROM messages WHERE to_id = ? AND is_read = 0', [$u['id']]);
+        if (!$u['sub']) {
+            $counts['c'] = (int)val('SELECT COALESCE(SUM(qty),0) FROM cart_items WHERE user_id = ?', [$u['id']]);
+            $counts['w'] = (int)val('SELECT COUNT(*) FROM wishlist WHERE user_id = ?', [$u['id']]);
+        }
     }
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
     $active = fn(string $p) => ($p === '/' ? $path === '/' : str_starts_with($path, $p)) ? ' class="on"' : '';
@@ -312,21 +337,24 @@ function layout(string $title, callable $body, array $opt = []): void {
 }
 
 function cabinet_open(array $u, string $path): void {
-    $items = [['/cabinet', 'grid', 'Dashboard']];
-    if (can_resell($u)) { $items[] = ['/shop/' . $u['slug'], 'shop', 'My shop page']; }
-    if (can_supply($u)) { $items[] = ['/cabinet/products', 'box', 'My products']; }
-    $items[] = ['/cabinet/orders', 'truck', can_supply($u) ? 'Orders manager' : 'My orders'];
-    if (can_supply($u) || can_resell($u)) $items[] = ['/cabinet/stats', 'chart', 'Selling stats'];
-    $items[] = ['/cabinet/messenger', 'msg', 'Messenger'];
-    if (can_supply($u) || can_resell($u)) $items[] = ['/cabinet/profile', 'wallet', 'Profile & wallet'];
-    if (can_resell($u)) $items[] = ['/cabinet/collection', 'layers', 'Product collection'];
-    if (can_supply($u) || can_resell($u)) $items[] = ['/cabinet/blog', 'edit', 'My blog'];
-    $items[] = ['/cabinet/settings', 'settings', 'Settings'];
+    $sub = $u['sub'];
+    $shop = can_supply($u) || can_resell($u);
+    $items = $sub ? [] : [['/cabinet', 'grid', 'Dashboard']];
+    if ($shop && !empty($u['slug'])) $items[] = ['/shop/' . $u['slug'], 'shop', 'My shop page'];
+    if ($shop && has_perm($u, 'products') && can_supply($u)) $items[] = ['/cabinet/products', 'box', 'My products'];
+    if (has_perm($u, 'orders')) $items[] = ['/cabinet/orders', 'truck', $shop ? 'Orders manager' : 'My orders'];
+    if ($shop && !$sub) $items[] = ['/cabinet/stats', 'chart', 'Selling stats'];
+    if (has_perm($u, 'messages')) $items[] = ['/cabinet/messenger', 'msg', 'Messenger'];
+    if ($shop && !$sub) $items[] = ['/cabinet/profile', 'wallet', 'Profile & wallet'];
+    if (can_resell($u) && has_perm($u, 'products')) $items[] = ['/cabinet/collection', 'layers', 'Product collection'];
+    if ($shop && has_perm($u, 'blog')) $items[] = ['/cabinet/blog', 'edit', 'My blog'];
+    if ($shop && !$sub) $items[] = ['/cabinet/team', 'users', 'Team'];
+    if (!$sub) $items[] = ['/cabinet/settings', 'settings', 'Settings'];
     if ($u['role'] === 'admin') $items[] = ['/admin/users', 'users', 'Users manager'];
     ?>
 <main class="wrap cab">
   <aside class="side" id="side">
-    <div class="side-user"><span class="av"><?= e(mb_strtoupper(mb_substr($u['name'] ?: $u['email'], 0, 1))) ?></span><div><b><?= e($u['name'] ?: 'Member') ?></b><small><?= e(['customer' => 'Customer', 'vendor' => 'Reseller / blogger', 'supplier' => 'Supplier', 'admin' => 'Administrator'][$u['role']]) ?></small></div></div>
+    <div class="side-user"><span class="av"><?= e(mb_strtoupper(mb_substr($u['name'] ?: $u['email'], 0, 1))) ?></span><div><b><?= e($u['name'] ?: 'Member') ?></b><small><?= $sub ? 'Staff · ' . e($u['shop_name']) : e(role_label($u['role'])) ?></small></div></div>
     <?php foreach ($items as [$href, $ic, $label]): $on = $href === '/cabinet' ? $path === '/cabinet' : str_starts_with($path, $href); ?>
       <a href="<?= e($href) ?>" class="<?= $on ? 'on' : '' ?>"><?= ico($ic, 18) ?><span><?= e($label) ?></span></a>
     <?php endforeach; ?>

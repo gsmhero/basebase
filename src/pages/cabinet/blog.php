@@ -1,5 +1,5 @@
 <?php
-$u = require_role('vendor', 'supplier', 'admin');
+$u = require_role('vendor', 'supplier', 'admin'); require_perm($u, 'blog');
 $vid = (int)$u['vid'];
 $isAdmin = $u['role'] === 'admin';
 $sub = $seg[2] ?? '';

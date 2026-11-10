@@ -1,5 +1,5 @@
 <?php
-$u = require_login();
+$u = require_login(); if ($u['sub'] && !has_perm($u, 'orders') && !has_perm($u, 'messages')) deny();
 if (is_post()) { csrf_check(); q('UPDATE notifications SET is_read = 1 WHERE user_id = ?', [$u['id']]); redirect('/cabinet/notifications'); }
 $list = rows('SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 60', [$u['id']]);
 q('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND id <= ?', [$u['id'], $list[0]['id'] ?? 0]);

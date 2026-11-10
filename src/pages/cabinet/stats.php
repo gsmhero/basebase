@@ -1,5 +1,5 @@
 <?php
-$u = require_role('vendor', 'supplier', 'admin');
+$u = owner_only(require_role('vendor', 'supplier', 'admin'));
 $vid = (int)$u['vid'];
 $month = preg_match('/^\d{4}-\d{2}$/', $_GET['m'] ?? '') ? $_GET['m'] : date('Y-m');
 $from = $month . '-01'; $to = date('Y-m-d', strtotime("$from +1 month"));

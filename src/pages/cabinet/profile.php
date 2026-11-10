@@ -1,5 +1,5 @@
 <?php
-$u = require_role('vendor', 'supplier', 'admin');
+$u = owner_only(require_role('vendor', 'supplier', 'admin'));
 $vid = (int)$u['vid']; $uid = (int)$u['id'];
 $v = row('SELECT * FROM vendors WHERE id = ?', [$vid]);
 $soc = json_decode($v['socials'] ?? '{}', true) ?: [];

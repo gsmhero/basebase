@@ -5,6 +5,7 @@ csrf_check();
 $act = $seg[1] ?? '';
 $u = me();
 if (!$u) { flash('Please sign in first.', 'warn'); $_SESSION['next'] = parse_url($_SERVER['HTTP_REFERER'] ?? '/', PHP_URL_PATH) ?: '/'; redirect('/login'); }
+if ($u['sub'] && (in_array($act, ['wish', 'cart-add', 'set-add', 'cart-set', 'cart-del', 'review'], true) || ($act === 'collect' && !has_perm($u, 'products')))) deny();
 $id = (int)($_POST['id'] ?? 0);
 
 function add_to_cart(int $uid, array $p, int $shop, string $variant, int $qty, ?float $override = null): void {

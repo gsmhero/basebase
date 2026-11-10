@@ -1,5 +1,5 @@
 <?php
-$u = require_login();
+$u = owner_only(require_login());
 
 function cart_lines(int $uid): array {
     $lines = rows('SELECT ci.*, p.title, p.image, p.price, p.promo_price, p.variants, p.stock, p.vendor_id, p.reseller_pct, p.status, p.id AS pid FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE ci.user_id = ? ORDER BY ci.id', [$uid]);

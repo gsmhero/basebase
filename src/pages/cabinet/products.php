@@ -1,5 +1,5 @@
 <?php
-$u = require_role('supplier', 'admin');
+$u = require_role('supplier', 'admin'); require_perm($u, 'products');
 $vid = (int)$u['vid'];
 $sub = $seg[2] ?? '';
 $tree = categories_tree();

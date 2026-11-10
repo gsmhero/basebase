@@ -1,5 +1,5 @@
 <?php
-$u = require_role('vendor', 'admin');
+$u = require_role('vendor', 'admin'); require_perm($u, 'products');
 $vid = (int)$u['vid'];
 $tab = in_array($_GET['tab'] ?? '', ['sets', 'groups'], true) ? $_GET['tab'] : 'products';
 
