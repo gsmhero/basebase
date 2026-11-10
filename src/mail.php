@@ -8,14 +8,14 @@ function site_url(): string {
     return (!empty($_SERVER['HTTPS']) ? 'https://' : 'http://') . ($_SERVER['HTTP_HOST'] ?? 'www.basebase.ru');
 }
 
-function mail_log(string $msg): void { @file_put_contents(ROOT . '/storage/mail.log', date('c') . ' ' . $msg . "\n", FILE_APPEND); }
+function mail_log(string $msg): void { $GLOBALS['smtp_last'] = $msg; @file_put_contents(ROOT . '/storage/mail.log', date('c') . ' ' . $msg . "\n", FILE_APPEND); }
 
 function smtp_send(string $to, string $subject, string $html, string $text = ''): bool {
     $host = env('SMTP_HOST'); $port = (int)env('SMTP_PORT', '465'); $user = env('SMTP_USER'); $pass = env('SMTP_PASS');
     $from = env('SMTP_FROM', $user);
     $to = str_replace(["\r", "\n", '<', '>'], '', $to);
     $subject = str_replace(["\r", "\n"], ' ', $subject);
-    if ($host === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+    if ($host === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) { mail_log('SMTP_HOST is empty or recipient invalid'); return false; }
     $addr = preg_match('/<([^>]+)>/', $from, $m) ? $m[1] : $from;
     $addr = str_replace(["\r", "\n"], '', $addr);
     $fp = @stream_socket_client(($port === 465 ? 'ssl://' : 'tcp://') . $host . ':' . $port, $en, $es, 10);

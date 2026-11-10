@@ -28,7 +28,7 @@ elseif ($page === 'cabinet') {
     if (in_array($sub, ['dash', 'products', 'collection', 'orders', 'stats', 'messenger', 'profile', 'settings', 'notifications', 'blog', 'team'], true)) $file = "$pages/cabinet/$sub.php";
 } elseif ($page === 'admin') {
     $sub = $seg[1] ?? 'users';
-    if (in_array($sub, ['users', 'seed'], true)) $file = "$pages/admin/$sub.php";
+    if (in_array($sub, ['users', 'seed', 'mail'], true)) $file = "$pages/admin/$sub.php";
 }
 
 if (!$file || !is_file($file)) {
