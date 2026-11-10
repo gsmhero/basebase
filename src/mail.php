@@ -16,8 +16,13 @@ function smtp_send(string $to, string $subject, string $html, string $text = '')
     $to = str_replace(["\r", "\n", '<', '>'], '', $to);
     $subject = str_replace(["\r", "\n"], ' ', $subject);
     if ($host === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) { mail_log('SMTP_HOST is empty or recipient invalid'); return false; }
-    $addr = preg_match('/<([^>]+)>/', $from, $m) ? $m[1] : $from;
-    $addr = str_replace(["\r", "\n"], '', $addr);
+    // SMTP_FROM may be "Name <addr@x>", a bare address, or just a display name (then the login is the sender address)
+    $addr = ''; $fromName = 'basebase.ru';
+    if (preg_match('/^(.*)<([^>]+)>\s*$/', $from, $m) && filter_var(trim($m[2]), FILTER_VALIDATE_EMAIL)) { $addr = trim($m[2]); $n = trim($m[1], " \t\"'"); if ($n !== '') $fromName = $n; }
+    elseif (filter_var(trim($from), FILTER_VALIDATE_EMAIL)) $addr = trim($from);
+    else { if (trim($from) !== '') $fromName = trim($from); $addr = filter_var($user, FILTER_VALIDATE_EMAIL) ? $user : ''; }
+    $addr = str_replace(["\r", "\n", '<', '>'], '', $addr); $fromName = str_replace(["\r", "\n"], ' ', $fromName);
+    if ($addr === '') { mail_log('No sender address: set SMTP_FROM to an email, or SMTP_USER to a full email address'); return false; }
     $fp = @stream_socket_client(($port === 465 ? 'ssl://' : 'tcp://') . $host . ':' . $port, $en, $es, 10);
     if (!$fp) { mail_log("connect failed: $es"); return false; }
     stream_set_timeout($fp, 12);
@@ -46,7 +51,7 @@ function smtp_send(string $to, string $subject, string $html, string $text = '')
         $cmd('DATA', '354');
         $b = 'bb' . bin2hex(random_bytes(8));
         $text = $text !== '' ? $text : trim(html_entity_decode(strip_tags(preg_replace('~<(br|/p|/div|/tr|/h\d)>~i', "\n", $html))));
-        $msg = 'From: =?UTF-8?B?' . base64_encode('basebase.ru') . "?= <$addr>\r\n"
+        $msg = 'From: =?UTF-8?B?' . base64_encode($fromName) . "?= <$addr>\r\n"
              . "To: <$to>\r\nSubject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n"
              . 'Date: ' . date('r') . "\r\nMessage-ID: <" . bin2hex(random_bytes(10)) . "@$dom>\r\nMIME-Version: 1.0\r\n"
              . "Content-Type: multipart/alternative; boundary=\"$b\"\r\n\r\n"
