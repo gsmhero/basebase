@@ -19,6 +19,7 @@ if (is_post()) {
     [$name, $phone, $address, $delivery, $notes] = $f;
     if (!$lines) $err = 'Your cart is empty.';
     elseif ($name === '' || $phone === '' || $address === '') $err = 'Fill in name, phone and delivery address.';
+    elseif (($pay = ($_POST['pay'] ?? 'cod') === 'test' ? 'test' : 'cod') === 'test' && preg_replace('/\D+/', '', (string)($_POST['card'] ?? '')) !== '4242424242424242') $err = 'Test payment declined. Use the test card 4242 4242 4242 4242.';
     else {
         $pdo = db();
         $pdo->beginTransaction();
@@ -40,8 +41,8 @@ if (is_post()) {
                 }
                 $total += $l['sum']; $ready[] = [$l, $p];
             }
-            q('INSERT INTO orders (customer_id, total, status, name, phone, address, delivery_method, payment_method, notes) VALUES (?,?,?,?,?,?,?,?,?)',
-              [$u['id'], $total, 'new', $name, $phone, $address, $delivery, 'cod', $notes]);
+            q('INSERT INTO orders (customer_id, total, status, name, phone, address, delivery_method, payment_method, payment_status, notes) VALUES (?,?,?,?,?,?,?,?,?,?)',
+              [$u['id'], $total, 'new', $name, $phone, $address, $delivery, $pay, $pay === 'test' ? 'paid' : 'unpaid', $notes]);
             $oid = (int)$pdo->lastInsertId();
             $notify = [];
             foreach ($ready as [$l, $p]) {
@@ -59,7 +60,7 @@ if (is_post()) {
             q('DELETE FROM cart_items WHERE user_id = ?', [$u['id']]);
             $pdo->commit();
             foreach ($notify as $uid => $titles) notify($uid, 'New order BB-' . (1000 + $oid) . ': ' . count($titles) . ' item(s)', '/cabinet/orders/' . $oid);
-            flash('Order BB-' . (1000 + $oid) . ' placed! The seller will contact you shortly.');
+            flash('Order BB-' . (1000 + $oid) . ($pay === 'test' ? ' paid with test payment (no real money). Mark items as Delivered to credit wallets.' : ' placed! The seller will contact you shortly.'));
             redirect('/cabinet/orders/' . $oid);
         } catch (RuntimeException $e) { $pdo->rollBack(); $err = $e->getMessage(); }
     }
@@ -93,7 +94,13 @@ layout('Cart', function () use ($lines, $total, $u, $err) { ?>
       <?= field('Delivery address', 'address', $_POST['address'] ?? '', 'text', 'required') ?>
       <label class="fld"><span>Delivery method</span><select name="delivery"><?php foreach (['CDEK', 'OZON Shipping', 'Russian Post', 'Pickup'] as $d): ?><option <?= ($_POST['delivery'] ?? '') === $d ? 'selected' : '' ?>><?= $d ?></option><?php endforeach; ?></select></label>
       <?= field('Notes for the seller', 'notes', $_POST['notes'] ?? '') ?>
-      <div class="r"><span class="muted">Payment</span><span>On delivery</span></div>
+      <?php $pm = $_POST['pay'] ?? 'cod'; ?>
+      <div class="fld"><span>Payment</span>
+        <label class="row" style="flex-wrap:nowrap;gap:8px;align-items:center;margin:4px 0"><input type="radio" name="pay" value="cod" <?= $pm !== 'test' ? 'checked' : '' ?>> On delivery</label>
+        <label class="row" style="flex-wrap:nowrap;gap:8px;align-items:center;margin:4px 0"><input type="radio" name="pay" value="test" <?= $pm === 'test' ? 'checked' : '' ?>> Test payment <span class="chip d">no real money</span></label>
+        <div id="test-card" <?= $pm === 'test' ? '' : 'hidden' ?>><input name="card" value="<?= e($_POST['card'] ?? '4242 4242 4242 4242') ?>" inputmode="numeric" placeholder="Test card number"><p class="muted sm" style="margin:6px 0 0">Test card 4242 4242 4242 4242 succeeds; any other number is declined. The order is marked Paid.</p></div>
+      </div>
+      <script>document.querySelectorAll('input[name=pay]').forEach(function(r){r.addEventListener('change',function(){document.getElementById('test-card').hidden=document.querySelector('input[name=pay]:checked').value!=='test'})})</script>
       <div class="r tot"><span>Total</span><span><?= money($total) ?></span></div>
       <button class="btn gold block lg" style="margin-top:16px">Place order</button>
     </form>

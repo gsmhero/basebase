@@ -66,7 +66,7 @@ if (!empty($seg[2])) {
         <p style="margin:0 0 4px"><b><?= e($o['name']) ?></b></p><p class="muted" style="margin:0"><?= e($o['phone']) ?></p><p class="muted"><?= e($o['cust_email']) ?></p>
         <h3 style="margin-top:20px">Delivery</h3><p style="margin:0"><?= e($o['delivery_method']) ?></p><p class="muted"><?= e($o['address']) ?></p>
         <?php if ($o['notes']): ?><h3 style="margin-top:20px">Notes</h3><p class="muted"><?= e($o['notes']) ?></p><?php endif; ?>
-        <h3 style="margin-top:20px">Payment</h3><p class="muted" style="margin:0 0 8px">On delivery</p>
+        <h3 style="margin-top:20px">Payment</h3><p class="muted" style="margin:0 0 8px"><?= $o['payment_method'] === 'test' ? 'Test payment (simulated)' : 'On delivery' ?></p>
         <?php if ($canPay): ?><form method="post" class="share-box"><?= csrf_field() ?><input type="hidden" name="do" value="payment"><select name="pay" onchange="this.form.submit()"><?php foreach (['unpaid', 'paid', 'refunded'] as $s): ?><option <?= $o['payment_status'] === $s ? 'selected' : '' ?>><?= $s ?></option><?php endforeach; ?></select></form><?php else: echo badge($o['payment_status']); endif; ?>
         <?php if (!$isCust): ?><a class="btn block" style="margin-top:20px" href="/cabinet/messenger/<?= (int)$o['customer_id'] ?>"><?= ico('msg', 16) ?> Message customer</a><?php endif; ?>
       </section>
