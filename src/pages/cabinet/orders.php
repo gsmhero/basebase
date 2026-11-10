@@ -42,6 +42,14 @@ if (!empty($seg[2])) {
                 notify((int)$o['customer_id'], 'Order BB-' . (1000 + $oid) . ': “' . $it['title'] . '” is now ' . $statuses[$new], '/cabinet/orders/' . $oid);
                 flash('Status updated.');
             }
+        } elseif ($do === 'pay') {
+            if (!$isCust || $o['payment_status'] !== 'unpaid') flash('This order cannot be paid.', 'warn');
+            elseif (preg_replace('/\D+/', '', (string)($_POST['card'] ?? '')) !== '4242424242424242') flash('Test payment declined. Use the test card 4242 4242 4242 4242.', 'bad');
+            else {
+                q("UPDATE orders SET payment_status = 'paid', payment_method = 'test' WHERE id = ? AND payment_status = 'unpaid'", [$oid]);
+                foreach (array_unique(array_column($items, 'vendor_id')) as $sv) { $su = (int)val('SELECT user_id FROM vendors WHERE id = ?', [$sv]); if ($su) notify($su, 'Order BB-' . (1000 + $oid) . ' has been paid', '/cabinet/orders/' . $oid); }
+                flash('Payment received (test payment, no real money).');
+            }
         } elseif ($do === 'payment' && ($isAdmin || array_filter($items, fn($i) => (int)$i['vendor_id'] === $vid)) && in_array($_POST['pay'] ?? '', ['unpaid', 'paid', 'refunded'], true)) {
             q('UPDATE orders SET payment_status = ? WHERE id = ?', [$_POST['pay'], $oid]); flash('Payment status updated.');
         }
@@ -67,7 +75,8 @@ if (!empty($seg[2])) {
         <h3 style="margin-top:20px">Delivery</h3><p style="margin:0"><?= e($o['delivery_method']) ?></p><p class="muted"><?= e($o['address']) ?></p>
         <?php if ($o['notes']): ?><h3 style="margin-top:20px">Notes</h3><p class="muted"><?= e($o['notes']) ?></p><?php endif; ?>
         <h3 style="margin-top:20px">Payment</h3><p class="muted" style="margin:0 0 8px"><?= $o['payment_method'] === 'test' ? 'Test payment (simulated)' : 'On delivery' ?></p>
-        <?php if ($canPay): ?><form method="post" class="share-box"><?= csrf_field() ?><input type="hidden" name="do" value="payment"><select name="pay" onchange="this.form.submit()"><?php foreach (['unpaid', 'paid', 'refunded'] as $s): ?><option <?= $o['payment_status'] === $s ? 'selected' : '' ?>><?= $s ?></option><?php endforeach; ?></select></form><?php else: echo badge($o['payment_status']); endif; ?>
+        <?php if ($isCust && $o['payment_status'] === 'unpaid'): ?><form method="post"><?= csrf_field() ?><input type="hidden" name="do" value="pay"><input name="card" value="4242 4242 4242 4242" inputmode="numeric" placeholder="Test card number"><p class="muted sm" style="margin:6px 0 10px">Test payment — card 4242 4242 4242 4242 succeeds.</p><button class="btn gold block">Pay <?= money($sum) ?> now</button></form><?php endif; ?>
+        <?php if ($canPay): ?><form method="post" class="share-box" style="margin-top:12px"><?= csrf_field() ?><input type="hidden" name="do" value="payment"><select name="pay" onchange="this.form.submit()"><?php foreach (['unpaid', 'paid', 'refunded'] as $s): ?><option <?= $o['payment_status'] === $s ? 'selected' : '' ?>><?= $s ?></option><?php endforeach; ?></select></form><?php else: echo badge($o['payment_status']); endif; ?>
         <?php if (!$isCust): ?><a class="btn block" style="margin-top:20px" href="/cabinet/messenger/<?= (int)$o['customer_id'] ?>"><?= ico('msg', 16) ?> Message customer</a><?php endif; ?>
       </section>
     </div>
