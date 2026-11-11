@@ -28,10 +28,10 @@ layout('Selling stats', function () use ($daily, $max, $tot, $role, $top, $month
   <div class="bars"><?php foreach ($daily as $d => $v): ?><i style="height:<?= max(2, $v / $max * 100) ?>%" data-t="<?= $d ?>: <?= e(money($v)) ?>"></i><?php endforeach; ?></div>
   <div class="row" style="justify-content:space-between;flex-wrap:nowrap;margin-top:6px" class="muted sm"><span class="muted sm">1</span><span class="muted sm"><?= count($daily) ?></span></div></section>
 <div class="dash-grid">
-  <section class="card span-7"><div class="card-h"><h3>Top products</h3></div><div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th class="num">Sold</th><th class="num">Revenue</th><th class="num">Profit</th></tr></thead><tbody>
+  <section class="card span-12"><div class="card-h"><h3>Top products</h3></div><div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th class="num">Sold</th><th class="num">Revenue</th><th class="num">Profit</th></tr></thead><tbody>
     <?php foreach ($top as $t): ?><tr><td><?= e(mb_strimwidth($t['title'], 0, 40, '…')) ?></td><td class="num"><?= num($t['sold']) ?></td><td class="num"><?= money($t['rev']) ?></td><td class="num"><?= money($t['pr']) ?></td></tr><?php endforeach; ?>
     <?php if (!$top): ?><tr><td colspan="4" class="muted center" style="padding:30px">No sales in this month.</td></tr><?php endif; ?></tbody></table></div></section>
-  <section class="card span-5"><div class="card-h"><h3>Wallet activity</h3><a class="link" href="/cabinet/profile" style="color:var(--accent-d)">Wallet →</a></div>
+  <section class="card span-12"><div class="card-h"><h3>Wallet activity</h3><a class="link" href="/cabinet/profile" style="color:var(--accent-d)">Wallet →</a></div>
     <?php foreach ($wallet as $w): ?><div class="row" style="flex-wrap:nowrap;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><span class="sm"><?= e(mb_strimwidth((string)$w['note'], 0, 32, '…')) ?><br><span class="muted"><?= ago($w['created_at']) ?></span></span><b style="flex:none;color:var(--<?= $w['amount'] >= 0 ? 'ok' : 'bad' ?>)"><?= ($w['amount'] >= 0 ? '+' : '') . money($w['amount']) ?></b></div><?php endforeach; ?>
     <?php if (!$wallet): ?><p class="muted">No transactions yet.</p><?php endif; ?></section>
 </div>

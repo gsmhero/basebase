@@ -86,7 +86,7 @@ foreach ($types as $k => $t) { $req = array_filter($t['fields'], fn($f) => $f['r
 layout('Profile & wallet', function () use ($v, $bal, $tx, $nets, $total, $types, $personal, $tabLabel, $ptype, $progress) { ?>
 <div class="card-h"><h2 style="margin:0">Profile &amp; wallet</h2><a class="btn sm" href="/shop/<?= e($v['slug']) ?>"><?= ico('eye', 14) ?> View public page</a></div>
 <div class="dash-grid">
-  <div class="span-5" style="display:grid;gap:22px;align-content:start">
+  <div class="span-12" style="display:grid;gap:22px;align-content:start">
     <section class="card"><h3>Wallet</h3><div class="wallet-n"><?= money($bal) ?></div><p class="muted sm">Payout as: <b><?= e($tabLabel[$ptype]) ?></b> · <?= $progress[$ptype][0] ?>/<?= $progress[$ptype][1] ?> required fields filled</p>
       <form method="post" class="share-box"><?= csrf_field() ?><input type="hidden" name="do" value="withdraw"><input name="amount" type="number" min="100" step="0.01" placeholder="Amount, ₽" required><button class="btn dark" style="flex:none">Withdraw money</button></form>
       <p class="muted sm" style="margin:8px 0 0">Sent to your bank account automatically. Test mode: amounts ending in .98 simulate a bank error, .99 an unknown error (goes to admin review).</p>
@@ -103,7 +103,7 @@ layout('Profile & wallet', function () use ($v, $bal, $tx, $nets, $total, $types
     </form>
   </div>
 
-  <section class="card span-7" data-tabs="<?= e($ptype) ?>">
+  <section class="card span-12" data-tabs="<?= e($ptype) ?>">
     <div class="card-h"><h3>Personal data</h3><span class="muted sm">Used for payouts only · never shown publicly</span></div>
     <div class="tabs"><?php foreach ($types as $k => $t): ?><button type="button" data-tab="<?= $k ?>"><?= e($tabLabel[$k]) ?> <span class="muted sm"><?= $progress[$k][0] ?>/<?= $progress[$k][1] ?></span></button><?php endforeach; ?></div>
     <form method="post"><?= csrf_field() ?><input type="hidden" name="do" value="personal"><input type="hidden" name="ptype" value="<?= e($ptype) ?>" data-tabval>
