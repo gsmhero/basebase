@@ -61,7 +61,7 @@ layout('Dashboard', function () use ($u, $kp, $stats, $trends, $orders, $stock, 
 
 <?php if ($vid): ?>
 <div class="dash-grid">
-  <section class="card span-7"><div class="card-h"><h3>Selling stats</h3>
+  <section class="card span-12"><div class="card-h"><h3>Selling stats</h3>
     <form method="get" class="row" style="flex:none;flex-wrap:nowrap;gap:8px"><input type="month" name="m" value="<?= e($month) ?>" onchange="this.form.submit()" style="width:auto;padding:6px 10px">
       <select name="n" onchange="this.form.submit()" style="width:auto;padding:6px 10px"><?php foreach ([5, 10, 20] as $n): ?><option value="<?= $n ?>" <?= $topN === $n ? 'selected' : '' ?>>View <?= $n ?></option><?php endforeach; ?></select></form></div>
     <div class="scroll"><table class="tbl"><thead><tr><th>Product</th><th>Price</th><th>Category</th><th>Owner</th><th class="num">Visits</th><th class="num">Sold</th><th class="num">Revenue</th><th class="num">Profit</th></tr></thead><tbody>
@@ -69,7 +69,7 @@ layout('Dashboard', function () use ($u, $kp, $stats, $trends, $orders, $stock, 
       <?php if (!$stats): ?><tr><td colspan="8" class="muted center">No products yet — collect some from the catalog.</td></tr><?php endif; ?>
     </tbody></table></div><p style="margin:12px 0 0"><a class="link" href="/cabinet/stats" style="color:var(--accent-d)">Full statistics →</a></p></section>
 
-  <section class="card span-5"><div class="card-h"><h3>Selling trends</h3><span class="muted sm">Top categories</span></div>
+  <section class="card span-12"><div class="card-h"><h3>Selling trends</h3><span class="muted sm">Top categories</span></div>
     <table class="tbl"><thead><tr><th>Category</th><th class="num">Sellers</th><th class="num">Visits</th></tr></thead><tbody>
       <?php foreach ($trends as $t): ?><tr><td><?= e($t['name']) ?></td><td class="num"><?= $t['sellers'] ?></td><td class="num"><?= num($t['visits']) ?></td></tr><?php endforeach; ?>
       <?php if (!$trends): ?><tr><td colspan="3" class="muted center">No data yet.</td></tr><?php endif; ?></tbody></table></section>
