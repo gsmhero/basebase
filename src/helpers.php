@@ -412,7 +412,7 @@ function place_order(int $customerId, array $lines, array $f, string $pay): int 
         q('INSERT INTO orders (customer_id, total, status, name, phone, address, delivery_method, payment_method, payment_status, notes) VALUES (?,?,?,?,?,?,?,?,?,?)',
           [$customerId, $total, 'new', $f['name'], $f['phone'], $f['address'], $f['delivery'], $pay, $pay === 'test' ? 'paid' : 'unpaid', $f['notes']]);
         $oid = (int)$pdo->lastInsertId();
-        $notify = [];
+        $notify = []; $hooks = [];
         foreach ($ready as [$l, $p]) {
             $reseller = (int)$l['shop_id'];
             if ($reseller) {
@@ -424,11 +424,14 @@ function place_order(int $customerId, array $lines, array $f, string $pay): int 
             $afee = agent_cut($p, (float)$l['unit'], (int)$l['qty'], $fee, $ag);
             q('INSERT INTO order_items (order_id, product_id, vendor_id, qty, price, commission, agent_id, agent_fee, fulfillment, item_status, reseller_id, reseller_fee, title, variant) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
               [$oid, $p['id'], $p['vendor_id'], $l['qty'], $l['unit'], $fee, $ag['id'] ?? null, $afee, $p['is_dropship'] ? 'dropship' : 'vendor', 'pending', $reseller ?: null, $rfee, $p['title'], $l['variant']]);
+            $iid = (int)$pdo->lastInsertId();
+            $hooks[] = [(int)$p['vendor_id'], ['order_id' => $oid, 'item_id' => $iid, 'title' => $p['title'], 'external_id' => $p['external_id'] ?? null, 'variant' => $l['variant'], 'qty' => (int)$l['qty'], 'price' => (float)$l['unit'], 'seller_receives' => round($l['unit'] * $l['qty'] - $fee - $rfee, 2)]];
             $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$p['vendor_id']])][] = $p['title'];
             if ($reseller) $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller])][] = $p['title'];
         }
         $pdo->commit();
     } catch (Throwable $e) { if ($pdo->inTransaction()) $pdo->rollBack(); throw $e; }
+    foreach ($hooks as [$hv, $hd]) emit_for_vendor($hv, 'order.created', $hd + ['customer' => ['name' => $f['name'], 'phone' => $f['phone'], 'address' => $f['address'], 'delivery' => $f['delivery'], 'notes' => $f['notes']]]);
     foreach ($notify as $uid => $titles) notify($uid, 'New order BB-' . (1000 + $oid) . ': ' . count($titles) . ' item(s)', '/cabinet/orders/' . $oid);
     return $oid;
 }

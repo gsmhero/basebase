@@ -9,6 +9,7 @@ if (is_post()) {
         $a = row('SELECT * FROM agents WHERE id = ?', [$id]);
         if ($a && ($_POST['status'] !== 'active' || $a['agent_key'])) {
             q('UPDATE agents SET status = ? WHERE id = ?', [$_POST['status'], $id]);
+            if ($_POST['status'] === 'active' && !$a['api_secret']) q('UPDATE agents SET api_secret = ? WHERE id = ?', [bin2hex(random_bytes(24)), $id]);
             if ($_POST['status'] === 'active') notify((int)$a['user_id'], 'Your partner site is connected to Basebase.', '/cabinet/agent');
             flash('Agent status updated.');
         } else flash('This agent has not entered an AGENT_KEY yet.', 'warn');

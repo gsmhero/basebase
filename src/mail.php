@@ -118,3 +118,12 @@ function mail_invite(string $email, string $shop, string $token): bool {
     $link = site_url() . '/invite/' . $token;
     return smtp_send($email, "You're invited to manage $shop on basebase.ru", mail_html('Join ' . $shop, '<p>You have been invited to help manage <b>' . e($shop) . '</b> on basebase.ru — products, orders, messages or blog, depending on the permissions you were given.</p>', ['Accept invite', $link]));
 }
+
+/** Welcome email for a seller account created from a partner site: link to set the password. */
+function mail_managed_seller(int $uid, string $domain): bool {
+    $u = row('SELECT email, name FROM users WHERE id = ?', [$uid]);
+    if (!$u) return false;
+    $link = make_login_link($uid, 'access', 14 * 86400);
+    $host = parse_url($domain, PHP_URL_HOST) ?: 'a partner site';
+    return smtp_send($u['email'], 'Your basebase.ru seller account', mail_html('Your seller account is ready', '<p>Hi' . ($u['name'] ? ', ' . e($u['name']) : '') . '! Your products from <b>' . e($host) . '</b> are being published on <b>basebase.ru</b>. Orders, messages and your wallet are managed from there, and you can also sign in on basebase.ru. Set a password to sign in:</p>', ['Set password', $link]));
+}

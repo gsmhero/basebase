@@ -11,20 +11,6 @@ $types = require ROOT . '/src/profile_fields.php';
 $tabLabel = ['self' => 'Самозанятый / ИП', 'company' => 'Компания', 'personal' => 'Физлицо'];
 $ptype = isset($types[$v['payout_type']]) ? $v['payout_type'] : 'self';
 
-function missing_required(array $type, array $data): array {
-    $miss = [];
-    foreach ($type['fields'] as $f) if ($f['required'] && trim((string)($data['f' . $f['id']] ?? '')) === '') $miss[] = $f['label'];
-    return $miss;
-}
-
-/** Payout gateway stub (test mode). Returns ['ok'|'unknown'|'error', message]. */
-function payout_send(float $amt, array $data): array {
-    $cents = (int)round(fmod($amt, 1) * 100);
-    if ($cents === 99) return ['unknown', ''];                                   // test: unknown error -> pending for admin
-    if ($cents === 98) return ['error', 'The bank rejected the transfer (test).']; // test: real error shown to user
-    return ['ok', ''];
-}
-
 if (is_post()) {
     csrf_check();
     $do = $_POST['do'] ?? '';
@@ -58,20 +44,8 @@ if (is_post()) {
             else flash('Personal data saved. You can now withdraw money.');
         }
     } elseif ($do === 'withdraw') {
-        $amt = round((float)str_replace(',', '.', (string)($_POST['amount'] ?? 0)), 2);
-        $bal = wallet_balance($uid);
-        $miss = missing_required($types[$ptype], $personal[$ptype] ?? []);
-        if ($miss) flash('Complete the required fields in Personal data first (' . count($miss) . ' missing, e.g. “' . $miss[0] . '”).', 'warn');
-        elseif ($amt < 100) flash('Minimum withdrawal is 100 ₽.', 'bad');
-        elseif ($amt > $bal) flash('Not enough funds on the wallet.', 'bad');
-        else {
-            // Automatic payout to the user's bank account. Replace payout_send() with the real payment system call.
-            [$res, $perr] = payout_send($amt, $personal[$ptype] ?? []);
-            $note = 'Withdrawal to bank (' . $tabLabel[$ptype] . ')';
-            if ($res === 'ok') { q("INSERT INTO wallet_tx (user_id, amount, type, status, note) VALUES (?,?,'withdraw','done',?)", [$uid, -$amt, $note]); flash(money($amt) . ' sent to your bank account.'); }
-            elseif ($res === 'unknown') { q("INSERT INTO wallet_tx (user_id, amount, type, status, note) VALUES (?,?,'withdraw','pending',?)", [$uid, -$amt, $note . ' — under review']); notify(admin_user_id(), 'Payout needs review: ' . money($amt), '/admin/users'); flash('The payment system did not confirm the transfer. It is under review by the administrator.', 'warn'); }
-            else flash('Transfer failed: ' . $perr . ' Your balance was not changed.', 'bad');
-        }
+        [$ft, $fm] = withdraw_money($uid, $v, round((float)str_replace(',', '.', (string)($_POST['amount'] ?? 0)), 2));
+        flash($fm, $ft);
     }
     redirect('/cabinet/profile');
 }

@@ -2,22 +2,7 @@
 $u = require_perm(require_login(), 'orders');
 $vid = (int)$u['vid'];
 $isAdmin = $u['role'] === 'admin';
-$statuses = ['pending' => 'Pending', 'prepare' => 'Prepare', 'shipped' => 'Shipped', 'on_delivery' => 'On delivery', 'delivered' => 'Delivered', 'archived' => 'Archived', 'returned' => 'Returned'];
-
-function settle_item(array $it, bool $on): void {
-    $s = (int)val('SELECT user_id FROM vendors WHERE id = ?', [$it['vendor_id']]);
-    $net = round($it['price'] * $it['qty'] - $it['commission'] - $it['reseller_fee'], 2);
-    $legs = [['oi' . $it['id'] . ':s', $s, $net, 'sale', 'Sale: ' . $it['title']]];
-    if ($it['reseller_id']) $legs[] = ['oi' . $it['id'] . ':r', (int)val('SELECT user_id FROM vendors WHERE id = ?', [$it['reseller_id']]), (float)$it['reseller_fee'], 'commission', 'Commission: ' . $it['title']];
-    $agentFee = (float)($it['agent_fee'] ?? 0);
-    if ($agentFee > 0 && $it['agent_id']) $legs[] = ['oi' . $it['id'] . ':g', (int)val('SELECT user_id FROM agents WHERE id = ?', [$it['agent_id']]), $agentFee, 'commission', 'Agency fee: ' . $it['title']];
-    $legs[] = ['oi' . $it['id'] . ':a', admin_user_id(), round((float)$it['commission'] - $agentFee, 2), 'commission', 'Platform margin: ' . $it['title']];
-    foreach ($legs as [$ref, $uid, $amt, $type, $note]) {
-        if (!$uid || $amt <= 0) continue;
-        if ($on) q('INSERT IGNORE INTO wallet_tx (user_id, amount, type, ref, note) VALUES (?,?,?,?,?)', [$uid, $amt, $type, $ref, $note]);
-        elseif (val('SELECT 1 FROM wallet_tx WHERE ref = ?', [$ref])) q('INSERT IGNORE INTO wallet_tx (user_id, amount, type, ref, note) VALUES (?,?,?,?,?)', [$uid, -$amt, 'adjust', $ref . ':rev', 'Return: ' . $it['title']]);
-    }
-}
+$statuses = ITEM_STATUSES;
 
 /* ---------- order detail ---------- */
 if (!empty($seg[2])) {
@@ -35,13 +20,7 @@ if (!empty($seg[2])) {
             $it = row('SELECT * FROM order_items WHERE id = ? AND order_id = ?', [(int)$_POST['item'], $oid]);
             $new = $_POST['status'] ?? '';
             if ($it && isset($statuses[$new]) && ($isAdmin || (int)$it['vendor_id'] === $vid)) {
-                q('UPDATE order_items SET item_status = ? WHERE id = ?', [$new, $it['id']]);
-                if ($new === 'delivered' && $it['item_status'] !== 'delivered') settle_item($it, true);
-                if ($new === 'returned' && $it['item_status'] === 'delivered') settle_item($it, false);
-                $all = array_column(rows('SELECT item_status FROM order_items WHERE order_id = ?', [$oid]), 'item_status');
-                $os = !array_diff($all, ['delivered', 'archived']) ? 'done' : (array_intersect($all, ['shipped', 'on_delivery']) ? 'shipped' : $o['status']);
-                q('UPDATE orders SET status = ? WHERE id = ?', [$os, $oid]);
-                notify((int)$o['customer_id'], 'Order BB-' . (1000 + $oid) . ': “' . $it['title'] . '” is now ' . $statuses[$new], '/cabinet/orders/' . $oid);
+                apply_item_status($it, $new);
                 flash('Status updated.');
             }
         } elseif ($do === 'pay') {

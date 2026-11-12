@@ -4,6 +4,12 @@ $uid = (int)$u['id'];
 q('INSERT IGNORE INTO agents (user_id) VALUES (?)', [$uid]);
 $ag = row('SELECT * FROM agents WHERE user_id = ?', [$uid]);
 
+if (is_post() && ($_POST['do'] ?? '') === 'secret' && $ag['status'] === 'active') {
+    csrf_check();
+    q('UPDATE agents SET api_secret = ? WHERE id = ?', [bin2hex(random_bytes(24)), $ag['id']]);
+    flash('New API secret generated. Update it on your partner site — the old one no longer works.');
+    redirect('/cabinet/agent');
+}
 if (is_post()) {
     csrf_check();
     $key = trim((string)($_POST['agent_key'] ?? ''));
@@ -28,6 +34,7 @@ $sellers = rows('SELECT u.id, u.name, u.email, v.shop_name, (SELECT COUNT(*) FRO
     (SELECT COUNT(*) FROM order_items oi WHERE oi.vendor_id = v.id) sales FROM users u LEFT JOIN vendors v ON v.user_id = u.id WHERE u.agent_id = ? ORDER BY u.id DESC', [$ag['id']]);
 $earned = (float)val("SELECT COALESCE(SUM(amount),0) FROM wallet_tx WHERE user_id = ? AND ref LIKE 'oi%:g'", [$uid]);
 $st = ['new' => ['Not connected', 'mute'], 'pending' => ['Waiting for confirmation', 'warn'], 'active' => ['Connected', 'ok'], 'suspended' => ['Suspended', 'bad']][$ag['status']];
+webhooks_flush(3);
 layout('Partner site', function () use ($ag, $total, $fee, $sellers, $earned, $st) { ?>
 <div class="card-h"><div><h2 style="margin:0">Partner site</h2><span class="muted">Connect your Sysfera platform and earn an Agency fee on your sellers' sales.</span></div><span class="badge <?= $st[1] ?>"><?= $st[0] ?></span></div>
 <div class="dash-grid">
@@ -42,7 +49,15 @@ layout('Partner site', function () use ($ag, $total, $fee, $sellers, $earned, $s
     <p class="muted sm" style="margin:0">It is part of the platform commission (<?= rtrim(rtrim(number_format($total, 2), '0'), '.') ?>%), shared with Basebase — sellers and bloggers never pay more. Basebase keeps <?= rtrim(rtrim(number_format(max(0, $total - $fee), 2), '0'), '.') ?>%. Money arrives in your wallet when the order item is marked as Delivered.</p>
     <div class="kpis" style="margin-top:16px"><div class="kpi"><small>Your sellers</small><b><?= count($sellers) ?></b></div><div class="kpi gold"><small>Agency fee earned</small><b><?= money($earned) ?></b></div></div></section>
 
-  <section class="card span-12"><h3>3. Sellers from your platform</h3>
+  <section class="card span-12"><h3>3. API access</h3>
+    <?php if ($ag['status'] === 'active' && $ag['api_secret']): ?>
+      <p class="muted sm" style="margin-top:0">Enter these three values in Sysfera → Warehouse Manager → Basebase connection. Keep the secret private: it signs every request between your site and Basebase.</p>
+      <div class="grid2"><label class="fld"><span>Agent ID</span><input readonly value="<?= (int)$ag['id'] ?>"></label><label class="fld"><span>API address</span><input readonly value="<?= e(site_url() . '/api/v1') ?>"></label></div>
+      <div class="share-box"><input readonly type="password" value="<?= e($ag['api_secret']) ?>" id="apisec"><button type="button" class="btn sm" style="flex:none" data-copy="<?= e($ag['api_secret']) ?>">Copy secret</button>
+        <form method="post" data-confirm="Generate a new secret? The old one stops working immediately." style="flex:none"><?= csrf_field() ?><input type="hidden" name="do" value="secret"><button class="btn sm danger">Regenerate</button></form></div>
+    <?php else: ?><p class="muted" style="margin:0">Available after Basebase confirms your connection.</p><?php endif; ?></section>
+
+  <section class="card span-12"><h3>4. Sellers from your platform</h3>
     <?php if ($sellers): ?><table class="tbl"><thead><tr><th>Seller</th><th>Shop</th><th class="num">Products</th><th class="num">Sold items</th></tr></thead><tbody>
       <?php foreach ($sellers as $s): ?><tr><td><b><?= e($s['name'] ?: '—') ?></b><div class="muted sm"><?= e($s['email']) ?></div></td><td><?= e($s['shop_name'] ?: '—') ?></td><td class="num"><?= (int)$s['pc'] ?></td><td class="num"><?= (int)$s['sales'] ?></td></tr><?php endforeach; ?></tbody></table>
     <?php else: ?><p class="muted" style="margin:0">No sellers yet. Users who register on your platform and export products to Basebase will appear here.</p><?php endif; ?></section>

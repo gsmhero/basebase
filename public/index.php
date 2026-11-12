@@ -4,6 +4,8 @@ require __DIR__ . '/../src/bootstrap.php';
 require ROOT . '/src/helpers.php';
 require ROOT . '/src/migrate.php';
 require ROOT . '/src/mail.php';
+require ROOT . '/src/finance.php';
+require ROOT . '/src/webhooks.php';
 
 set_exception_handler(function (Throwable $e) {
     http_response_code(500);
@@ -22,6 +24,7 @@ $pages = ROOT . '/src/pages';
 $simple = ['home', 'faq', 'blogs', 'login', 'register', 'logout', 'cart', 'watch', 'product', 'shop', 'set', 'do', 'blog', 'invite', 'embed', 'reset'];
 $file = null;
 if ($page === 'products') $file = "$pages/catalog.php";
+elseif ($page === 'api') $file = ROOT . '/src/api.php';
 elseif (in_array($page, $simple, true)) $file = "$pages/$page.php";
 elseif ($page === 'cabinet') {
     $sub = $seg[1] ?? 'dash';

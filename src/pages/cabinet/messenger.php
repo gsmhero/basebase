@@ -10,6 +10,7 @@ if (is_post() && $peer) {
     $body = trim((string)($_POST['body'] ?? ''));
     if ($body !== '') {
         q('INSERT INTO messages (from_id, to_id, product_id, body, sent_by) VALUES (?,?,?,?,?)', [$me, $peer['id'], $prod['id'] ?? null, mb_substr($body, 0, 4000), $u['sub_id']]);
+        emit_for_user((int)$peer['id'], 'message.received', ['from_user_id' => $me, 'from_name' => $u['name'], 'body' => mb_substr($body, 0, 4000), 'product_id' => $prod['id'] ?? null]);
         notify((int)$peer['id'], 'New message from ' . (($u['sub'] ? $u['shop_name'] : $u['name']) ?: 'a user'), '/cabinet/messenger/' . $me);
     }
     redirect('/cabinet/messenger/' . $peer['id']);

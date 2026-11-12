@@ -1,6 +1,6 @@
 # Basebase ↔ Sysfera integration API — v1 (DRAFT)
 
-Contract between **basebase.ru** and the **Warehouse Manager** component of Sysfera Platform installed on an Agent's partner site. Both sides are built against this document. Change it here first, then in code. Status: draft — nothing below is implemented in Basebase yet except the Agent role, the Agency fee and the commission split (section 6).
+Contract between **basebase.ru** and the **Warehouse Manager** component of Sysfera Platform installed on an Agent's partner site. Both sides are built against this document. Change it here first, then in code. Status: **Basebase side implemented** (sections 2–4 and 6, plus the outgoing webhooks of section 5). The partner-site endpoints of section 5 are for Sysfera to implement.
 
 ## 1. Actors
 
@@ -10,13 +10,15 @@ Contract between **basebase.ru** and the **Warehouse Manager** component of Sysf
 | **Partner site** | The Agent's Sysfera install (`https://shop.example.com`) with the Warehouse Manager component. |
 | **Seller** | A user registered on the partner site. Has a *managed* Basebase account (a Supplier) created through this API. Belongs to the Agent (`users.agent_id`). |
 
-## 2. Connecting an Agent (handshake)
+## 2. Connecting an Agent
 
-1. Warehouse Manager is installed → it generates `AGENT_KEY` (random, 32+ chars `[A-Za-z0-9_-]`) and shows it to the admin.
-2. The Agent enters `AGENT_KEY` + site address in Basebase → **Cabinet → Partner site**. Status becomes `pending`.
-3. Basebase calls `GET {site}/api/basebase/handshake?challenge={random}` and expects `{ "agent_key_hash": sha256(AGENT_KEY + challenge) }`. A match proves the site really holds the key.
-4. Basebase generates a per-agent **signing secret** and returns it in the next handshake step; both sides store it. Status → `active` after the Basebase admin approves.
-5. From then on every call is signed (section 3). The raw `AGENT_KEY` is never sent again.
+1. Warehouse Manager is installed → it generates `AGENT_KEY` (random, 16–80 chars `[A-Za-z0-9_-]`) and shows it to the admin.
+2. The Agent enters `AGENT_KEY` + site address in Basebase → **Cabinet → Partner site**. Status becomes `pending`; the Basebase admin is notified.
+3. The Basebase admin approves the agent (**Admin → Agents manager**). Basebase generates the per-agent **API secret** (48 hex chars).
+4. The Agent sees **Agent ID**, **API address** and **API secret** in **Cabinet → Partner site → API access** (the secret can be regenerated; the old one stops working at once) and enters them in Warehouse Manager.
+5. From then on every call is signed (section 3). The `AGENT_KEY` is only an identifier for the human linking step and is never used to sign.
+
+*Planned (not built):* a challenge call `GET {site}/api/basebase/handshake?challenge=…` that proves the site really holds the key before approval.
 
 ## 3. Authentication of every request
 
@@ -34,15 +36,19 @@ HTTPS only. JSON bodies (UTF-8). Errors: `{ "error": "code", "message": "…" }`
 
 | Method & path | Purpose |
 |---|---|
-| `POST /sellers` | Create a managed seller account `{ email, name, shop_name, phone, external_id }` → `{ seller_id, shop_slug }`. Linked to the calling Agent. Idempotent by `external_id`. |
+| `GET /ping` | Check credentials → `{ ok, agent_id, agency_fee, platform_commission, time }`. |
+| `GET /categories` | Category tree `[{ id, name, children: [{ id, name }] }]` for `category_id` / `category` in products. |
+| `POST /sellers` | Create a managed seller account `{ email, name, shop_name, phone, external_id }` → `201 { seller_id, shop_slug, created: true }`. Linked to the calling Agent. Idempotent by `external_id` (`200 … created:false`). `409 email_taken` if the email already has a Basebase account. The seller receives an email with a "set password" link. |
+| `GET /sellers/{seller_id}` | Seller summary + shop URL. |
+| `PUT /sellers/{seller_id}/profile` | Payout profile `{ payout_type: "self"\|"company"\|"personal", fields: { "27": "Иванов", … } }` (field ids from `database/profile-fields.csv`) → `{ payout_type, missing_required: [labels] }`. Needed before the first withdrawal. |
 | `PUT /sellers/{seller_id}/products/{external_id}` | Create/update a product (see 4.1). Idempotent. |
 | `DELETE /sellers/{seller_id}/products/{external_id}` | Hide the product (status `draft`). |
 | `PATCH /sellers/{seller_id}/products/{external_id}/stock` | `{ stock }` or per-variant `{ variants: [{name, stock, price?}] }`. |
-| `GET /sellers/{seller_id}/orders?since=…&status=…` | Orders containing this seller's items (see 4.2). |
+| `GET /sellers/{seller_id}/orders?since_id=…&status=…&limit=…` | Order items of this seller in ascending `item_id` order (see 4.2); poll with the last `item_id` you saw. Max 200. |
 | `PATCH /sellers/{seller_id}/orders/{item_id}` | Change item status `{ status }` (`prepare`, `shipped`, `delivered`, …). |
 | `GET /sellers/{seller_id}/wallet` | `{ balance, transactions: [...] }`. |
-| `POST /sellers/{seller_id}/wallet/withdraw` | `{ amount }` — uses the seller's saved payout profile; same rules as the cabinet (minimum 100 ₽, automatic payout, unknown error → admin review). |
-| `GET /sellers/{seller_id}/messages?since=…` | Read messages (threads and bodies). |
+| `POST /sellers/{seller_id}/wallet/withdraw` | `{ amount }` — uses the seller's saved payout profile; same rules as the cabinet. Result `{ status, message, balance }`: `200 sent`; `202 review` (unknown payment error, admin will check); `422` with `profile_incomplete`, `too_small` (min 100 ₽), `insufficient`, `failed`. |
+| `GET /sellers/{seller_id}/messages?since_id=…&limit=…` | Messages in and out `{ id, direction: in\|out, peer_user_id, peer_name, product_id, body, created_at }`. |
 | `POST /sellers/{seller_id}/messages` | Reply `{ to_user_id, body }` (acts under the seller's shop name). |
 
 ### 4.1 Product payload
@@ -75,8 +81,17 @@ Custom fields are stored as `products.specs` (ordered key/value list). Any new k
 
 | Method & path | Purpose |
 |---|---|
-| `GET /handshake` | Section 2. |
-| `POST /webhook` | Basebase pushes events: `order.created`, `order.status_changed`, `message.received`, `wallet.credited`. Signed like section 3. Retried with back-off; the receiver must be idempotent (`event_id`). |
+| `POST /webhook` | Basebase pushes `{ event_id, event, created_at, data }`. Signed like section 3 (verify it!). Reply `2xx` to acknowledge; otherwise Basebase retries after 2, 4, 8 … minutes, up to 8 attempts. The receiver must be idempotent by `event_id`. Delivery is best-effort — poll `/orders` and `/messages` as a fallback. |
+| `GET /handshake` | Planned, see section 2. |
+
+Events (`data` always contains `seller_id`):
+
+| `event` | `data` |
+|---|---|
+| `order.created` | `order_id, item_id, title, external_id, variant, qty, price, seller_receives, customer{name,phone,address,delivery,notes}` |
+| `order.status_changed` | `order_id, item_id, status, previous` |
+| `message.received` | `from_user_id, from_name, body, product_id` |
+| `wallet.credited` | `amount, type, note, balance` |
 
 ## 6. Commission (implemented)
 
@@ -90,7 +105,7 @@ All percentages are of the **margin = price − promo price** per unit.
 ## 7. Open points (to decide before building the API)
 
 1. Rate limits and maximum payload sizes.
-2. Do managed sellers ever get a password / can they log in to Basebase directly? (Proposal: yes, through a "set password" email link, same as guest accounts.)
-3. Images: pushed as URLs (Basebase downloads and stores them) — confirm.
-4. Orders: webhook only, or webhook + polling fallback? (Proposal: both.)
+2. ~~Managed sellers' login~~ — decided: they get a "set password" email link and can use basebase.ru directly.
+3. ~~Images~~ — decided: pushed as `https` URLs; Basebase downloads and stores them (≤ 5 MB each, max 8, re-downloaded only when the URL list changes).
+4. ~~Orders~~ — decided: webhooks plus polling fallback.
 5. Versioning: `/api/v1`, breaking changes only in `/api/v2`; Basebase supports the previous major for 12 months.
