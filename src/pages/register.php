@@ -2,7 +2,7 @@
 if (me()) redirect('/cabinet');
 $err = '';
 $as = $_POST['role'] ?? ($_GET['as'] ?? 'vendor');
-if (!in_array($as, ['vendor', 'supplier', 'customer'], true)) $as = 'vendor';
+if (!in_array($as, ['vendor', 'supplier', 'agent', 'customer'], true)) $as = 'vendor';
 if (is_post()) {
     csrf_check();
     $email = mb_strtolower(trim((string)($_POST['email'] ?? '')));
@@ -25,7 +25,7 @@ if (is_post()) {
         session_regenerate_id(true);
         $_SESSION['uid'] = $uid;
         flash($role === 'admin' ? 'Welcome, Site Admin! You have full access.' : 'Account created. Welcome to basebase!');
-        redirect($role === 'supplier' ? '/cabinet/products/new' : ($role === 'vendor' ? '/products' : '/cabinet'));
+        redirect($role === 'supplier' ? '/cabinet/products/new' : ($role === 'vendor' ? '/products' : ($role === 'agent' ? '/cabinet/agent' : '/cabinet')));
     }
 }
 layout('Register', function () use ($err, $as) { ?>
@@ -36,6 +36,7 @@ layout('Register', function () use ($err, $as) { ?>
     <div class="seg">
       <label><input type="radio" name="role" value="vendor" <?= $as === 'vendor' ? 'checked' : '' ?>><span>Reseller<small>collect &amp; earn</small></span></label>
       <label><input type="radio" name="role" value="supplier" <?= $as === 'supplier' ? 'checked' : '' ?>><span>Supplier<small>list products</small></span></label>
+      <label><input type="radio" name="role" value="agent" <?= $as === 'agent' ? 'checked' : '' ?>><span>Agent<small>partner site</small></span></label>
       <label><input type="radio" name="role" value="customer" <?= $as === 'customer' ? 'checked' : '' ?>><span>Customer<small>just buy</small></span></label>
     </div>
     <?= field('Your name', 'name', $_POST['name'] ?? '', 'text', 'required autocomplete="name"') ?>

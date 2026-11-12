@@ -75,17 +75,18 @@ function deny(): never {
 }
 function require_perm(array $u, string $p): array { if (!has_perm($u, $p)) deny(); return $u; }
 function owner_only(array $u): array { if ($u['sub']) deny(); return $u; }
-function role_label(string $r): string { return ['customer' => 'Customer', 'vendor' => 'Reseller', 'supplier' => 'Supplier', 'admin' => 'Administrator'][$r] ?? $r; }
+function role_label(string $r): string { return ['customer' => 'Customer', 'vendor' => 'Reseller', 'supplier' => 'Supplier', 'admin' => 'Administrator', 'agent' => 'Agent'][$r] ?? $r; }
 function require_login(): array {
     $u = me();
     if (!$u) { flash('Please sign in first.', 'warn'); $_SESSION['next'] = $_SERVER['REQUEST_URI'] ?? '/'; redirect('/login'); }
     return $u;
 }
-function can_supply(?array $u): bool { return $u && in_array($u['role'], ['supplier', 'admin'], true); }
-function can_resell(?array $u): bool { return $u && in_array($u['role'], ['vendor', 'admin'], true); }
+function can_supply(?array $u): bool { return $u && in_array($u['role'], ['supplier', 'admin', 'agent'], true); }
+function can_resell(?array $u): bool { return $u && in_array($u['role'], ['vendor', 'admin', 'agent'], true); }
 function require_role(string ...$roles): array {
     $u = require_login();
-    if (!in_array($u['role'], $roles, true)) { http_response_code(403); layout('Forbidden', fn() => print('<div class="empty"><h2>No access</h2><p>Your account type cannot open this section.</p></div>')); exit; }
+    $have = $u['role'] === 'agent' ? ['agent', 'vendor', 'supplier'] : [$u['role']];   // an Agent can do everything a Reseller and a Supplier can
+    if (!array_intersect($have, $roles)) { http_response_code(403); layout('Forbidden', fn() => print('<div class="empty"><h2>No access</h2><p>Your account type cannot open this section.</p></div>')); exit; }
     return $u;
 }
 function make_vendor(int $uid, string $name): int {
@@ -124,9 +125,18 @@ function platform_pct(): float { return max(0.0, min(100.0, (float)setting('plat
 /** Split of the margin (price − supplier price): [admin fee, reseller share]. No reseller → admin keeps all of it. */
 function item_split(array $p, float $unit, int $qty, bool $hasReseller): array {
     $margin = max(0.0, ($unit - base_price($p, $unit)) * $qty);
-    if (!$hasReseller) return [round($margin, 2), 0.0];
-    $fee = round($margin * platform_pct() / 100, 2);
-    return [$fee, round($margin - $fee, 2)];
+    $fee = round($margin * platform_pct() / 100, 2);                  // total platform commission (Basebase + agent)
+    return [$fee, $hasReseller ? round($margin - $fee, 2) : 0.0];     // no blogger: the seller keeps the rest of the margin
+}
+/** The active Agent a seller (vendor id) belongs to, if any. */
+function agent_for_vendor(int $vendorId): ?array {
+    return row("SELECT a.id, a.user_id, a.agency_fee FROM vendors v JOIN users u ON u.id = v.user_id JOIN agents a ON a.id = u.agent_id WHERE v.id = ? AND a.status = 'active'", [$vendorId]) ?: null;
+}
+/** Agent's part of the platform commission: Agency fee % of the margin, never more than the total commission. */
+function agent_cut(array $p, float $unit, int $qty, float $totalFee, ?array $agent): float {
+    if (!$agent) return 0.0;
+    $margin = max(0.0, ($unit - base_price($p, $unit)) * $qty);
+    return max(0.0, min($totalFee, round($margin * (float)$agent['agency_fee'] / 100, 2)));
 }
 function reseller_earn(array $p, ?float $unit = null): float {
     $unit ??= (float)$p['price'];
@@ -350,7 +360,8 @@ function cabinet_open(array $u, string $path): void {
     if ($shop && has_perm($u, 'blog')) $items[] = ['/cabinet/blog', 'edit', 'My blog'];
     if ($shop && !$sub) $items[] = ['/cabinet/team', 'users', 'Team'];
     if (!$sub) $items[] = ['/cabinet/settings', 'settings', 'Settings'];
-    if ($u['role'] === 'admin') $items[] = ['/admin/users', 'users', 'Users manager'];
+    if ($u['role'] === 'agent' && !$sub) $items[] = ['/cabinet/agent', 'share', 'Partner site'];
+    if ($u['role'] === 'admin') { $items[] = ['/admin/users', 'users', 'Users manager']; $items[] = ['/admin/agents', 'share', 'Agents manager']; }
     ?>
 <main class="wrap cab">
   <aside class="side" id="side">
@@ -409,8 +420,10 @@ function place_order(int $customerId, array $lines, array $f, string $pay): int 
                 if (!$ru || $ru === $customerId || $reseller === (int)$p['vendor_id']) $reseller = 0;
             }
             [$fee, $rfee] = item_split($p, (float)$l['unit'], (int)$l['qty'], (bool)$reseller);
-            q('INSERT INTO order_items (order_id, product_id, vendor_id, qty, price, commission, fulfillment, item_status, reseller_id, reseller_fee, title, variant) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-              [$oid, $p['id'], $p['vendor_id'], $l['qty'], $l['unit'], $fee, $p['is_dropship'] ? 'dropship' : 'vendor', 'pending', $reseller ?: null, $rfee, $p['title'], $l['variant']]);
+            $ag = agent_for_vendor((int)$p['vendor_id']);
+            $afee = agent_cut($p, (float)$l['unit'], (int)$l['qty'], $fee, $ag);
+            q('INSERT INTO order_items (order_id, product_id, vendor_id, qty, price, commission, agent_id, agent_fee, fulfillment, item_status, reseller_id, reseller_fee, title, variant) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+              [$oid, $p['id'], $p['vendor_id'], $l['qty'], $l['unit'], $fee, $ag['id'] ?? null, $afee, $p['is_dropship'] ? 'dropship' : 'vendor', 'pending', $reseller ?: null, $rfee, $p['title'], $l['variant']]);
             $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$p['vendor_id']])][] = $p['title'];
             if ($reseller) $notify[(int)val('SELECT user_id FROM vendors WHERE id = ?', [$reseller])][] = $p['title'];
         }

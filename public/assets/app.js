@@ -72,7 +72,7 @@
       const a = +pr.value || 0, b = +pm.value || 0;
       if (!a || !b || b >= a) { out.textContent = a ? 'Without a promo price the whole price goes to you.' : ''; return; }
       const m = a - b, fee = m * pct / 100;
-      out.textContent = 'You receive ' + f(b) + ' · blogger ' + f(m - fee) + ' · platform ' + f(fee) + ' (with a blogger).';
+      out.textContent = 'Direct sale: you receive ' + f(a - fee) + ' · platform ' + f(fee) + '. Via a blogger: you receive ' + f(b) + ' · blogger ' + f(m - fee) + ' · platform ' + f(fee) + '.';
     };
     pr.addEventListener('input', calc); pm.addEventListener('input', calc); calc();
   }

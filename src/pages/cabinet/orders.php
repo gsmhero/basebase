@@ -9,7 +9,9 @@ function settle_item(array $it, bool $on): void {
     $net = round($it['price'] * $it['qty'] - $it['commission'] - $it['reseller_fee'], 2);
     $legs = [['oi' . $it['id'] . ':s', $s, $net, 'sale', 'Sale: ' . $it['title']]];
     if ($it['reseller_id']) $legs[] = ['oi' . $it['id'] . ':r', (int)val('SELECT user_id FROM vendors WHERE id = ?', [$it['reseller_id']]), (float)$it['reseller_fee'], 'commission', 'Commission: ' . $it['title']];
-    $legs[] = ['oi' . $it['id'] . ':a', admin_user_id(), (float)$it['commission'], 'commission', 'Platform margin: ' . $it['title']];
+    $agentFee = (float)($it['agent_fee'] ?? 0);
+    if ($agentFee > 0 && $it['agent_id']) $legs[] = ['oi' . $it['id'] . ':g', (int)val('SELECT user_id FROM agents WHERE id = ?', [$it['agent_id']]), $agentFee, 'commission', 'Agency fee: ' . $it['title']];
+    $legs[] = ['oi' . $it['id'] . ':a', admin_user_id(), round((float)$it['commission'] - $agentFee, 2), 'commission', 'Platform margin: ' . $it['title']];
     foreach ($legs as [$ref, $uid, $amt, $type, $note]) {
         if (!$uid || $amt <= 0) continue;
         if ($on) q('INSERT IGNORE INTO wallet_tx (user_id, amount, type, ref, note) VALUES (?,?,?,?,?)', [$uid, $amt, $type, $ref, $note]);
@@ -64,7 +66,7 @@ if (!empty($seg[2])) {
     <div class="dash-grid">
       <section class="card span-8"><h3>Items</h3>
         <?php foreach ($mineItems as $i): ?><div class="line" style="grid-template-columns:64px 1fr auto"><a class="th" style="width:64px;height:64px" href="/product/<?= (int)$i['product_id'] ?>"><?= pimg(['id' => $i['product_id'], 'title' => $i['title'], 'image' => $i['image']]) ?></a>
-          <div><b><?= e($i['title']) ?></b><?= $i['variant'] ? ' <span class="muted">· ' . e($i['variant']) . '</span>' : '' ?><div class="muted sm"><?= money($i['price']) ?> × <?= $i['qty'] ?><?php if ($isAdmin || (int)$i['vendor_id'] === $vid): ?> · you receive <?= money($i['price'] * $i['qty'] - $i['commission'] - $i['reseller_fee']) ?><?= $isAdmin ? ' · platform ' . money($i['commission']) . ($i['reseller_fee'] > 0 ? ' · blogger ' . money($i['reseller_fee']) : '') : '' ?><?php elseif ((int)$i['reseller_id'] === $vid): ?> · your commission <b style="color:var(--ok)"><?= money($i['reseller_fee']) ?></b><?php endif; ?></div></div>
+          <div><b><?= e($i['title']) ?></b><?= $i['variant'] ? ' <span class="muted">· ' . e($i['variant']) . '</span>' : '' ?><div class="muted sm"><?= money($i['price']) ?> × <?= $i['qty'] ?><?php if ($isAdmin || (int)$i['vendor_id'] === $vid): ?> · you receive <?= money($i['price'] * $i['qty'] - $i['commission'] - $i['reseller_fee']) ?><?= $isAdmin ? ' · platform ' . money($i['commission'] - $i['agent_fee']) . ($i['agent_fee'] > 0 ? ' · agent ' . money($i['agent_fee']) : '') . ($i['reseller_fee'] > 0 ? ' · blogger ' . money($i['reseller_fee']) : '') : '' ?><?php elseif ((int)$i['reseller_id'] === $vid): ?> · your commission <b style="color:var(--ok)"><?= money($i['reseller_fee']) ?></b><?php endif; ?></div></div>
           <div class="right"><b><?= money($i['price'] * $i['qty']) ?></b><div style="margin-top:6px">
             <?php if ($canEdit($i)): ?><form method="post" class="share-box"><?= csrf_field() ?><input type="hidden" name="do" value="status"><input type="hidden" name="item" value="<?= $i['id'] ?>"><select name="status" onchange="this.form.submit()" style="padding:6px 8px;font-size:13px"><?php foreach ($statuses as $k => $l): ?><option value="<?= $k ?>" <?= $i['item_status'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></form>
             <?php else: echo badge($i['item_status']); endif; ?></div></div></div><?php endforeach; ?>

@@ -96,7 +96,7 @@ layout($p ? 'Edit product' : 'Add product', function () use ($p, $vals, $tree, $
     <div class="card"><h3>Pricing &amp; stock</h3>
       <?= field('Price, ₽ (shown to customers)', 'price', $vals['price'], 'number', 'step="0.01" min="0" required id="f-price"') ?>
       <?= field('Promo price, ₽ (you receive)', 'promo_price', $vals['promo_price'], 'number', 'step="0.01" min="0" id="f-promo"') ?>
-      <div class="notice sm" id="split" data-pct="<?= e(platform_pct()) ?>" style="margin:-4px 0 14px">Customers only see the Price. The difference between Price and Promo price is the margin: it goes to the blogger who sold the product, minus the platform commission (<?= rtrim(rtrim(number_format(platform_pct(), 2), '0'), '.') ?>%). Without a blogger the margin goes to the platform.<div id="split-out" style="margin-top:6px;font-weight:600"></div></div>
+      <div class="notice sm" id="split" data-pct="<?= e(platform_pct()) ?>" style="margin:-4px 0 14px">Customers only see the Price. The difference between Price and Promo price is the margin: it goes to the blogger who sold the product, minus the platform commission (<?= rtrim(rtrim(number_format(platform_pct(), 2), '0'), '.') ?>%). Without a blogger you keep the margin minus the platform commission.<div id="split-out" style="margin-top:6px;font-weight:600"></div></div>
       <?= field('Stock, pc (simple product)', 'stock', $vals['stock'], 'number', 'min="0"') ?>
       <label class="fld"><span>Status</span><select name="status"><option value="active" <?= $vals['status'] === 'active' ? 'selected' : '' ?>>Active — visible in catalog</option><option value="draft" <?= $vals['status'] === 'draft' ? 'selected' : '' ?>>Draft — hidden</option></select></label>
     </div>

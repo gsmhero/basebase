@@ -231,7 +231,7 @@ input[type=checkbox],input[type=radio]{width:auto}
 .faq details p{margin:12px 0 0;color:var(--muted)}
 .auth-card{width:min(440px,100%);margin:56px auto;}
 .auth-card .card{padding:34px}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-bottom:16px}
 .seg label{cursor:pointer}.seg input{position:absolute;opacity:0}
 .seg span{display:block;padding:12px 8px;border:1px solid var(--line);border-radius:12px;text-align:center;font-weight:700;font-size:13px;background:var(--card);line-height:1.25}
 .seg small{display:block;font-weight:500;color:var(--muted);font-size:11px;margin-top:2px}

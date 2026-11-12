@@ -25,10 +25,10 @@ if ($page === 'products') $file = "$pages/catalog.php";
 elseif (in_array($page, $simple, true)) $file = "$pages/$page.php";
 elseif ($page === 'cabinet') {
     $sub = $seg[1] ?? 'dash';
-    if (in_array($sub, ['dash', 'products', 'collection', 'orders', 'stats', 'messenger', 'profile', 'settings', 'notifications', 'blog', 'team'], true)) $file = "$pages/cabinet/$sub.php";
+    if (in_array($sub, ['dash', 'products', 'collection', 'orders', 'stats', 'messenger', 'profile', 'settings', 'notifications', 'blog', 'team', 'agent'], true)) $file = "$pages/cabinet/$sub.php";
 } elseif ($page === 'admin') {
     $sub = $seg[1] ?? 'users';
-    if (in_array($sub, ['users', 'seed', 'mail'], true)) $file = "$pages/admin/$sub.php";
+    if (in_array($sub, ['users', 'seed', 'mail', 'agents'], true)) $file = "$pages/admin/$sub.php";
 }
 
 if (!$file || !is_file($file)) {
