@@ -20,10 +20,16 @@ if (is_post()) {
     elseif ($host === '' || !str_contains($host, '.')) flash('Enter the address of your partner site, for example https://shop.example.com', 'bad');
     elseif (val('SELECT 1 FROM agents WHERE agent_key = ? AND id <> ?', [$key, $ag['id']])) flash('This AGENT_KEY is already connected to another account.', 'bad');
     else {
-        $same = $ag['agent_key'] === $key && in_array($ag['status'], ['active', 'suspended'], true);
-        q('UPDATE agents SET agent_key = ?, domain = ?, status = ? WHERE id = ?', [$key, rtrim($dom, '/'), $same ? $ag['status'] : 'pending', $ag['id']]);
-        if (!$same) { notify(admin_user_id(), 'New agent connection to confirm: ' . ($u['name'] ?: $u['email']) . ' (' . $host . ')', '/admin/agents'); flash('Saved. Basebase will confirm your partner site shortly.'); }
-        else flash('Saved.');
+        // Agents are approved automatically; only an administrator can suspend one, and a suspended agent stays suspended.
+        $same = $ag['agent_key'] === $key && $ag['status'] === 'active';
+        $new = $ag['status'] === 'suspended' ? 'suspended' : 'active';
+        q('UPDATE agents SET agent_key = ?, domain = ?, status = ? WHERE id = ?', [$key, rtrim($dom, '/'), $new, $ag['id']]);
+        if ($new === 'active' && !$ag['api_secret']) q('UPDATE agents SET api_secret = ? WHERE id = ?', [bin2hex(random_bytes(24)), $ag['id']]);
+        if ($new === 'suspended') flash('Saved, but your account is suspended by Basebase. Contact support.', 'bad');
+        elseif (!$same) {
+            notify(admin_user_id(), 'New agent connected automatically: ' . ($u['name'] ?: $u['email']) . ' (' . $host . ') — you can suspend it in Agents.', '/admin/agents');
+            flash('Connected. Your partner site is active — copy the API secret below into Sysfera → Warehouse Manager → Basebase.');
+        } else flash('Saved.');
     }
     redirect('/cabinet/agent');
 }
