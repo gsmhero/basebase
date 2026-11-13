@@ -298,3 +298,4 @@ input[type=checkbox],input[type=radio]{width:auto}
   .grid2,.grid3{grid-template-columns:1fr}.ed-rep .rep-row{grid-template-columns:1fr 1fr}
 }
 @media (max-width:520px){.auth .link{display:none}.pgrid{grid-template-columns:repeat(2,1fr);gap:12px}.pcard-body{padding:10px 12px 12px}.price{font-size:15px}.tool{width:36px}.line{grid-template-columns:64px 1fr}.line>:last-child{grid-column:1/-1}.line .th{width:64px;height:64px}}
+.payopt{display:flex;align-items:center;justify-content:flex-start;gap:10px;margin:6px 0;cursor:pointer;font-size:15px}.payopt>*{flex:0 0 auto;min-width:0}.payopt input{margin:0}

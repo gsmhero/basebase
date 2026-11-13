@@ -62,8 +62,8 @@ layout('Cart', function () use ($lines, $total, $u, $err) { ?>
       <?= field('Notes for the seller', 'notes', $_POST['notes'] ?? '') ?>
       <?php $pm = $_POST['pay'] ?? 'cod'; ?>
       <div class="fld"><span>Payment</span>
-        <label class="row" style="flex-wrap:nowrap;gap:8px;align-items:center;margin:4px 0"><input type="radio" name="pay" value="cod" <?= $pm !== 'test' ? 'checked' : '' ?>> On delivery</label>
-        <label class="row" style="flex-wrap:nowrap;gap:8px;align-items:center;margin:4px 0"><input type="radio" name="pay" value="test" <?= $pm === 'test' ? 'checked' : '' ?>> Test payment <span class="chip d">no real money</span></label>
+        <label class="payopt"><input type="radio" name="pay" value="cod" <?= $pm !== 'test' ? 'checked' : '' ?>> On delivery</label>
+        <label class="payopt"><input type="radio" name="pay" value="test" <?= $pm === 'test' ? 'checked' : '' ?>> Test payment <span class="chip d">no real money</span></label>
         <div id="test-card" <?= $pm === 'test' ? '' : 'hidden' ?>><input name="card" value="<?= e($_POST['card'] ?? '4242 4242 4242 4242') ?>" inputmode="numeric" placeholder="Test card number"><p class="muted sm" style="margin:6px 0 0">Test card 4242 4242 4242 4242 succeeds; any other number is declined. The order is marked Paid.</p></div>
       </div>
       <script>document.querySelectorAll('input[name=pay]').forEach(function(r){r.addEventListener('change',function(){document.getElementById('test-card').hidden=document.querySelector('input[name=pay]:checked').value!=='test'})})</script>
