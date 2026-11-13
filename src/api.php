@@ -228,6 +228,18 @@ if ($sub === 'wallet') {
 }
 
 /* ----- payout profile ----- */
+if ($sub === 'profile' && $method === 'GET') {   // field definitions + the values saved so far, so an agent site can show and edit the same form
+    $types = require ROOT . '/src/profile_fields.php';
+    $vrow = row('SELECT * FROM vendors WHERE id = ?', [$vid]);
+    $personal = json_decode($vrow['personal'] ?? '{}', true) ?: [];
+    $t = isset($types[$vrow['payout_type'] ?? '']) ? (string)$vrow['payout_type'] : '';
+    $defs = []; $vals = [];
+    foreach ($types as $k => $ty) {
+        $defs[$k] = ['label' => $ty['label'], 'section' => $ty['section'], 'fields' => array_map(fn($f) => ['id' => (int)$f['id'], 'label' => trim((string)$f['label']), 'type' => $f['type'], 'required' => (bool)$f['required'], 'options' => $f['options'] ?? null], $ty['fields'])];
+        foreach ($ty['fields'] as $f) $vals[$k][(string)$f['id']] = (string)(($personal[$k] ?? [])['f' . $f['id']] ?? '');
+    }
+    api_out(['payout_type' => $t, 'types' => $defs, 'values' => $vals, 'missing_required' => $t ? missing_required($types[$t], $personal[$t] ?? []) : [], 'shop_name' => $s['shop_name']]);
+}
 if ($sub === 'profile' && $method === 'PUT') {
     $types = require ROOT . '/src/profile_fields.php';
     $t = (string)($in['payout_type'] ?? '');
