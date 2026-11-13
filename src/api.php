@@ -47,14 +47,30 @@ function api_str($v, int $max): string { return mb_substr(trim((string)$v), 0, $
 
 /** Downloads a remote image (https only, no private addresses, ≤5 MB) into /uploads. */
 function api_fetch_image(string $url): ?string {
-    $p = parse_url($url);
-    if (!$p || ($p['scheme'] ?? '') !== 'https' || empty($p['host'])) return null;
-    $ip = gethostbyname($p['host']);
-    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return null;
-    $fp = @fopen($url, 'rb', false, stream_context_create(['http' => ['timeout' => 8, 'follow_location' => 0, 'user_agent' => 'basebase-importer']]));
-    if (!$fp) return null;
-    $bytes = stream_get_contents($fp, 5 * 1024 * 1024 + 1); fclose($fp);
-    if ($bytes === false || $bytes === '' || strlen($bytes) > 5 * 1024 * 1024) return null;
+    $bytes = null;
+    for ($hop = 0; $hop < 4 && $bytes === null; $hop++) {   // follow up to 3 redirects, checking every host
+        $p = parse_url($url);
+        if (!$p || ($p['scheme'] ?? '') !== 'https' || empty($p['host'])) return null;
+        $ip = gethostbyname($p['host']);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return null;
+        $ua = 'Mozilla/5.0 (compatible; BasebaseImporter/1.0; +https://basebase.ru)';   // many CDNs (Ozon, WB…) refuse an unknown or empty agent
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => false, CURLOPT_TIMEOUT => 12, CURLOPT_CONNECTTIMEOUT => 6, CURLOPT_USERAGENT => $ua,
+                CURLOPT_HTTPHEADER => ['Accept: image/avif,image/webp,image/*,*/*;q=0.8'], CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_MAXFILESIZE => 5 * 1024 * 1024 + 1, CURLOPT_HEADER => false,
+                CURLOPT_HEADERFUNCTION => function ($c, $h) use (&$loc) { if (stripos($h, 'location:') === 0) $loc = trim(substr($h, 9)); return strlen($h); }]);
+            $loc = null; $body = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
+            if ($code >= 300 && $code < 400 && $loc) { $url = preg_match('~^https?://~i', $loc) ? $loc : ($p['scheme'] . '://' . $p['host'] . '/' . ltrim($loc, '/')); continue; }
+            if ($code !== 200 || !is_string($body)) return null;
+            $bytes = $body;
+        } else {
+            $fp = @fopen($url, 'rb', false, stream_context_create(['http' => ['timeout' => 12, 'follow_location' => 1, 'max_redirects' => 3, 'user_agent' => $ua, 'header' => "Accept: image/*,*/*;q=0.8\r\n"]]));
+            if (!$fp) return null;
+            $bytes = stream_get_contents($fp, 5 * 1024 * 1024 + 1); fclose($fp);
+            if ($bytes === false) return null;
+        }
+    }
+    if ($bytes === null || $bytes === '' || strlen($bytes) > 5 * 1024 * 1024) return null;
     $info = @getimagesizefromstring($bytes);
     $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'][$info['mime'] ?? ''] ?? null;
     if (!$ext) return null;
