@@ -158,6 +158,7 @@ if ($sub === 'products' && $sub2 !== '') {
         $short = api_str($in['short_description'] ?? '', 500) ?: mb_substr(trim(preg_replace('/\s+/', ' ', $desc)), 0, 200);
         $image = $p['image'] ?? null; $gallery = json_decode($p['gallery'] ?? '[]', true) ?: []; $hash = $p['ext_img_hash'] ?? null;
         $urls = array_slice(array_values(array_filter(array_map('strval', (array)($in['images'] ?? [])), fn($u) => $u !== '')), 0, 8);
+        if ($urls) { @ignore_user_abort(true); @set_time_limit(120); }   // downloading photos can take longer than the caller waits
         if ($urls && md5(implode('|', $urls)) !== $hash) {
             $saved = array_values(array_filter(array_map('api_fetch_image', $urls)));
             if ($saved) { $image = $saved[0]; $gallery = array_slice($saved, 1); $hash = md5(implode('|', $urls)); }
@@ -165,7 +166,7 @@ if ($sub === 'products' && $sub2 !== '') {
         $data = [$title, $short, $desc, $price, $promo, $stock, $cat, api_str($in['sku'] ?? '', 80) ?: null, $status, $image, json_encode($gallery), json_encode($attrs, JSON_UNESCAPED_UNICODE), $variants ? json_encode($variants, JSON_UNESCAPED_UNICODE) : null, $hash];
         if ($p) { q('UPDATE products SET title=?, short_desc=?, description=?, price=?, promo_price=?, stock=?, category_id=?, sku=?, status=?, image=?, gallery=?, attrs=?, variants=?, ext_img_hash=? WHERE id=?', [...$data, $p['id']]); $pid = (int)$p['id']; $created = false; }
         else { q('INSERT INTO products (title, short_desc, description, price, promo_price, stock, category_id, sku, status, image, gallery, attrs, variants, ext_img_hash, vendor_id, external_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [...$data, $vid, $ext]); $pid = (int)db()->lastInsertId(); $created = true; }
-        api_out(api_product_json(row('SELECT * FROM products WHERE id = ?', [$pid])) + ['created' => $created], $created ? 201 : 200);
+        api_out(api_product_json(row('SELECT * FROM products WHERE id = ?', [$pid])) + ['created' => $created, 'images_requested' => count($urls), 'images_saved' => $image ? 1 + count($gallery) : 0], $created ? 201 : 200);
     }
     if (!$p) api_err('not_found', 'Product not found.', 404);
 
