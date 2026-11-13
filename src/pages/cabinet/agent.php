@@ -4,6 +4,21 @@ $uid = (int)$u['id'];
 q('INSERT IGNORE INTO agents (user_id) VALUES (?)', [$uid]);
 $ag = row('SELECT * FROM agents WHERE user_id = ?', [$uid]);
 
+if (is_post() && in_array($_POST['do'] ?? '', ['user-status', 'user-release'], true)) {   // the agent manages the users of its site (never their orders or products)
+    csrf_check();
+    $tid = (int)($_POST['id'] ?? 0);
+    $mine = $ag['status'] === 'active' ? row('SELECT u.id, u.name, u.email FROM users u WHERE u.id = ? AND u.agent_id = ?', [$tid, $ag['id']]) : null;
+    if (!$mine) flash('This user does not belong to your site.', 'bad');
+    elseif ($_POST['do'] === 'user-status' && in_array($_POST['status'] ?? '', ['active', 'suspended'], true)) {
+        q('UPDATE vendors SET status = ? WHERE user_id = ?', [$_POST['status'], $tid]);
+        flash(($_POST['status'] === 'suspended' ? 'Shop suspended: ' : 'Shop activated: ') . ($mine['name'] ?: $mine['email']));
+    } else {
+        q('UPDATE users SET agent_id = NULL, ext_id = NULL WHERE id = ?', [$tid]);
+        notify($tid, 'Your account is no longer attached to a partner site. You can attach it to another one in Settings → Partner site.', '/cabinet/settings');
+        flash('User released from your site: ' . ($mine['name'] ?: $mine['email']));
+    }
+    redirect('/cabinet/agent');
+}
 if (is_post() && ($_POST['do'] ?? '') === 'secret' && $ag['status'] === 'active') {
     csrf_check();
     q('UPDATE agents SET api_secret = ? WHERE id = ?', [bin2hex(random_bytes(24)), $ag['id']]);
@@ -36,8 +51,7 @@ if (is_post()) {
 
 $total = platform_pct();
 $fee = min((float)$ag['agency_fee'], $total);
-$sellers = rows('SELECT u.id, u.name, u.email, v.shop_name, (SELECT COUNT(*) FROM products p WHERE p.vendor_id = v.id) pc,
-    (SELECT COUNT(*) FROM order_items oi WHERE oi.vendor_id = v.id) sales FROM users u LEFT JOIN vendors v ON v.user_id = u.id WHERE u.agent_id = ? ORDER BY u.id DESC', [$ag['id']]);
+$sellers = rows('SELECT u.id, u.name, u.email, u.created_at, v.shop_name, v.status AS shop_status FROM users u LEFT JOIN vendors v ON v.user_id = u.id WHERE u.agent_id = ? ORDER BY u.id DESC', [$ag['id']]);
 $earned = (float)val("SELECT COALESCE(SUM(amount),0) FROM wallet_tx WHERE user_id = ? AND ref LIKE 'oi%:g'", [$uid]);
 $st = ['new' => ['Not connected', 'mute'], 'pending' => ['Waiting for confirmation', 'warn'], 'active' => ['Connected', 'ok'], 'suspended' => ['Suspended', 'bad']][$ag['status']];
 webhooks_flush(3);
@@ -53,7 +67,7 @@ layout('Partner site', function () use ($ag, $total, $fee, $sellers, $earned, $s
   <section class="card span-12"><h3>2. Your Agency fee</h3>
     <p style="margin:0 0 8px">Your Agency fee is <b><?= rtrim(rtrim(number_format($fee, 2), '0'), '.') ?>%</b> of the margin (price − promo price) on every sale of your sellers.</p>
     <p class="muted sm" style="margin:0">It is part of the platform commission (<?= rtrim(rtrim(number_format($total, 2), '0'), '.') ?>%), shared with Basebase — sellers and bloggers never pay more. Basebase keeps <?= rtrim(rtrim(number_format(max(0, $total - $fee), 2), '0'), '.') ?>%. Money arrives in your wallet when the order item is marked as Delivered.</p>
-    <div class="kpis" style="margin-top:16px"><div class="kpi"><small>Your sellers</small><b><?= count($sellers) ?></b></div><div class="kpi gold"><small>Agency fee earned</small><b><?= money($earned) ?></b></div></div></section>
+    <div class="kpis" style="margin-top:16px"><div class="kpi"><small>Your users</small><b><?= count($sellers) ?></b></div><div class="kpi gold"><small>Agency fee earned</small><b><?= money($earned) ?></b></div></div></section>
 
   <section class="card span-12"><h3>3. API access</h3>
     <?php if ($ag['status'] === 'active' && $ag['api_secret']): ?>
@@ -63,9 +77,15 @@ layout('Partner site', function () use ($ag, $total, $fee, $sellers, $earned, $s
         <form method="post" data-confirm="Generate a new secret? The old one stops working immediately." style="flex:none"><?= csrf_field() ?><input type="hidden" name="do" value="secret"><button class="btn sm danger">Regenerate</button></form></div>
     <?php else: ?><p class="muted" style="margin:0">Available after Basebase confirms your connection.</p><?php endif; ?></section>
 
-  <section class="card span-12"><h3>4. Sellers from your platform</h3>
-    <?php if ($sellers): ?><table class="tbl"><thead><tr><th>Seller</th><th>Shop</th><th class="num">Products</th><th class="num">Sold items</th></tr></thead><tbody>
-      <?php foreach ($sellers as $s): ?><tr><td><b><?= e($s['name'] ?: '—') ?></b><div class="muted sm"><?= e($s['email']) ?></div></td><td><?= e($s['shop_name'] ?: '—') ?></td><td class="num"><?= (int)$s['pc'] ?></td><td class="num"><?= (int)$s['sales'] ?></td></tr><?php endforeach; ?></tbody></table>
-    <?php else: ?><p class="muted" style="margin:0">No sellers yet. Users who register on your platform and export products to Basebase will appear here.</p><?php endif; ?></section>
+  <section class="card span-12"><h3>4. Users of your platform</h3>
+    <p class="muted sm" style="margin-top:0">You manage the accounts. Their orders and products are private to them: you only see totals on your Dashboard.</p>
+    <?php if ($sellers): ?><div class="scroll"><table class="tbl"><thead><tr><th>User</th><th>Shop</th><th>Registered</th><th>Status</th><th></th></tr></thead><tbody>
+      <?php foreach ($sellers as $s): $susp = ($s['shop_status'] ?? '') === 'suspended'; ?><tr><td><b><?= e($s['name'] ?: '—') ?></b><div class="muted sm"><?= e($s['email']) ?></div></td><td><?= e($s['shop_name'] ?: '—') ?></td><td><?= $s['created_at'] ? e(date('d.m.Y', strtotime($s['created_at']))) : '—' ?></td>
+        <td><span class="badge <?= $susp ? 'bad' : 'ok' ?>"><?= $susp ? 'Suspended' : 'Active' ?></span></td>
+        <td><form method="post" class="share-box" style="justify-content:flex-end"><?= csrf_field() ?><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+          <?php if ($s['shop_status'] !== null): ?><button class="btn sm <?= $susp ? 'dark' : 'danger' ?>" name="do" value="user-status" onclick="this.form.status.value='<?= $susp ? 'active' : 'suspended' ?>'"><?= $susp ? 'Activate' : 'Suspend' ?></button><input type="hidden" name="status" value=""><?php endif; ?>
+          <button class="btn sm" name="do" value="user-release" onclick="return confirm('Release this user from your site? They can attach to another site themselves.')">Release</button></form></td></tr><?php endforeach; ?>
+    </tbody></table></div>
+    <?php else: ?><p class="muted" style="margin:0">No users yet. People who register on your platform and export products to Basebase will appear here.</p><?php endif; ?></section>
 </div>
 <?php }, ['cabinet' => true]);

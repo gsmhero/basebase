@@ -1,6 +1,20 @@
 <?php
 $u = require_login();
 if ($u['sub']) { foreach (['products' => '/cabinet/products', 'orders' => '/cabinet/orders', 'messages' => '/cabinet/messenger', 'blog' => '/cabinet/blog'] as $k => $href) if (has_perm($u, $k)) redirect($href); deny(); }
+if ($u['role'] === 'agent') {   // an Agent sees only totals about its site: no orders or products of its users
+    $ag = row('SELECT * FROM agents WHERE user_id = ?', [(int)$u['id']]);
+    $aid = (int)($ag['id'] ?? 0);
+    $prodTotal = $aid ? (int)val("SELECT COUNT(*) FROM products p JOIN vendors v ON v.id = p.vendor_id JOIN users x ON x.id = v.user_id WHERE x.agent_id = ? AND p.status <> 'archived'", [$aid]) : 0;
+    $profit = (float)val("SELECT COALESCE(SUM(amount),0) FROM wallet_tx WHERE user_id = ? AND ref LIKE 'oi%:g'", [(int)$u['id']]);
+    layout('Dashboard', function () use ($prodTotal, $profit, $ag) { ?>
+<div class="kpis">
+  <div class="kpi"><small>Product total</small><b><?= num($prodTotal) ?></b></div>
+  <div class="kpi gold"><small>Agent's total profit</small><b><?= money($profit) ?></b></div>
+</div>
+<section class="card"><p class="muted" style="margin:0">Totals for the users of your site<?= $ag && $ag['status'] !== 'active' ? ' (your partner site is not connected yet)' : '' ?>. Orders and products of your users are private to them. Manage your users and your connection in <a class="link" href="/cabinet/agent">Partner site</a>; your own products are in <a class="link" href="/cabinet/products">My products</a>.</p></section>
+<?php }, ['cabinet' => true]);
+    return;
+}
 $vid = (int)$u['vid'];
 $supply = can_supply($u); $resell = can_resell($u);
 

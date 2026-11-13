@@ -109,3 +109,10 @@ All percentages are of the **margin = price − promo price** per unit.
 3. ~~Images~~ — decided: pushed as `https` URLs; Basebase downloads and stores them (≤ 5 MB each, max 8, re-downloaded only when the URL list changes).
 4. ~~Orders~~ — decided: webhooks plus polling fallback.
 5. Versioning: `/api/v1`, breaking changes only in `/api/v2`; Basebase supports the previous major for 12 months.
+
+## Roles and privacy
+* **Sysfera Admin** — administrator of the main Sysfera site (core.sysfera.ru) and of Basebase.
+* **Agent** — administrator of a Sysfera Core installed on its own domain (the "partner site").
+* **User** — anyone registered on a partner site.
+
+Rules: an Agent manages its users (suspend/activate the shop, release) but does **not** see their orders or products in Basebase. The Agent's Dashboard shows only two totals: *Product total* and *Agent's total profit* (Agency fee). Every administrator (Sysfera Admin, Agent) can post and manage their own products. A User can move to another connected site in *Settings → Partner site* (products and balance stay with the account; enter the Seller ID on the new site under Basebase → Connection). Orders already placed keep the Agency fee of the site they were made on. The API (`/sellers/{id}/orders`) is what the user's own connector uses to deliver orders to the warehouse, as before.
