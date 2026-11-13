@@ -16,7 +16,7 @@ if (is_post()) {
     $dom = mb_strtolower(trim((string)($_POST['domain'] ?? '')));
     if ($dom !== '' && !preg_match('~^https?://~', $dom)) $dom = 'https://' . $dom;
     $host = (string)parse_url($dom, PHP_URL_HOST);
-    if (!preg_match('/^[A-Za-z0-9_-]{16,80}$/', $key)) flash('The AGENT_KEY looks wrong. Copy it exactly from Sysfera → Warehouse Manager (16–80 letters, digits, - or _).', 'bad');
+    if (!preg_match('/^[A-Za-z0-9_-]{16,80}$/', $key)) flash('The AGENT_KEY looks wrong. Copy it exactly from your Sysfera site: Basebase → Connection → AGENT_KEY (16–80 letters, digits, - or _).', 'bad');
     elseif ($host === '' || !str_contains($host, '.')) flash('Enter the address of your partner site, for example https://shop.example.com', 'bad');
     elseif (val('SELECT 1 FROM agents WHERE agent_key = ? AND id <> ?', [$key, $ag['id']])) flash('This AGENT_KEY is already connected to another account.', 'bad');
     else {
@@ -28,7 +28,7 @@ if (is_post()) {
         if ($new === 'suspended') flash('Saved, but your account is suspended by Basebase. Contact support.', 'bad');
         elseif (!$same) {
             notify(admin_user_id(), 'New agent connected automatically: ' . ($u['name'] ?: $u['email']) . ' (' . $host . ') — you can suspend it in Agents.', '/admin/agents');
-            flash('Connected. Your partner site is active — copy the API secret below into Sysfera → Warehouse Manager → Basebase.');
+            flash('Connected. Your partner site is active — copy the API secret below into your Sysfera site: Basebase → Connection.');
         } else flash('Saved.');
     }
     redirect('/cabinet/agent');
@@ -45,8 +45,8 @@ layout('Partner site', function () use ($ag, $total, $fee, $sellers, $earned, $s
 <div class="card-h"><div><h2 style="margin:0">Partner site</h2><span class="muted">Connect your Sysfera platform and earn an Agency fee on your sellers' sales.</span></div><span class="badge <?= $st[1] ?>"><?= $st[0] ?></span></div>
 <div class="dash-grid">
   <form class="card span-12" method="post"><?= csrf_field() ?><h3>1. Connect your platform</h3>
-    <p class="muted sm" style="margin-top:0">Install Sysfera Platform on your own domain, add the <b>Warehouse Manager</b> component and copy its <b>AGENT_KEY</b> from the component page. Paste it here together with the address of your site.</p>
-    <div class="grid2"><?= field('Partner site address', 'domain', $ag['domain'], 'text', 'placeholder="https://shop.your-domain.ru" required') ?><?= field('AGENT_KEY', 'agent_key', $ag['agent_key'] ?? '', 'text', 'placeholder="Paste the key from Warehouse Manager" required autocomplete="off"') ?></div>
+    <p class="muted sm" style="margin-top:0">Install Sysfera Platform on your own domain and add the <b>Warehouse Manager</b> and <b>Sysfera WMS → Basebase</b> components. Then, on your Sysfera site, open <b>Basebase → Connection</b> in the left menu: the <b>AGENT_KEY</b> is shown there in the first block (“0. AGENT_KEY”). Copy it and paste it here together with the address of your site.</p>
+    <div class="grid2"><?= field('Partner site address', 'domain', $ag['domain'], 'text', 'placeholder="https://shop.your-domain.ru" required') ?><?= field('AGENT_KEY', 'agent_key', $ag['agent_key'] ?? '', 'text', 'placeholder="Paste the key from Basebase → Connection" required autocomplete="off"') ?></div>
     <button class="btn dark">Save connection</button>
     <?php if ($ag['status'] === 'pending'): ?><p class="muted sm" style="margin:12px 0 0">Waiting for Basebase to confirm the connection. You will get a notification.</p><?php endif; ?></form>
 
@@ -57,7 +57,7 @@ layout('Partner site', function () use ($ag, $total, $fee, $sellers, $earned, $s
 
   <section class="card span-12"><h3>3. API access</h3>
     <?php if ($ag['status'] === 'active' && $ag['api_secret']): ?>
-      <p class="muted sm" style="margin-top:0">Enter these three values in Sysfera → Warehouse Manager → Basebase connection. Keep the secret private: it signs every request between your site and Basebase.</p>
+      <p class="muted sm" style="margin-top:0">Enter these three values on your Sysfera site: Basebase → Connection, block “Access to Basebase”. Keep the secret private: it signs every request between your site and Basebase.</p>
       <div class="grid2"><label class="fld"><span>Agent ID</span><input readonly value="<?= (int)$ag['id'] ?>"></label><label class="fld"><span>API address</span><input readonly value="<?= e(site_url() . '/api/v1') ?>"></label></div>
       <div class="share-box"><input readonly type="password" value="<?= e($ag['api_secret']) ?>" id="apisec"><button type="button" class="btn sm" style="flex:none" data-copy="<?= e($ag['api_secret']) ?>">Copy secret</button>
         <form method="post" data-confirm="Generate a new secret? The old one stops working immediately." style="flex:none"><?= csrf_field() ?><input type="hidden" name="do" value="secret"><button class="btn sm danger">Regenerate</button></form></div>
