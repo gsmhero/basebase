@@ -39,6 +39,65 @@ function apply_item_status(array $it, string $new): void {
 }
 
 /* ---------- payouts ---------- */
+/** Rows in other tables that point at $table (foreign keys), deleted bottom-up like ON DELETE CASCADE would, except the tables in $keep (history that must survive). */
+function purge_refs(string $table, array $ids, array $keep, int $depth = 0): void {
+    if (!$ids || $depth > 6) return;
+    $in = implode(',', array_map('intval', $ids));
+    foreach (rows('SELECT TABLE_NAME t, COLUMN_NAME c FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME = ?', [$table]) as $r) {
+        $t = $r['t']; $c = $r['c'];
+        if (in_array($t, $keep, true)) continue;
+        try { $child = array_map('intval', array_column(rows("SELECT id FROM `$t` WHERE `$c` IN ($in)"), 'id')); } catch (Throwable $e) { $child = []; }
+        if ($child && !($t === $table && $depth > 5)) purge_refs($t, $child, $keep, $depth + 1);
+        q("DELETE FROM `$t` WHERE `$c` IN ($in)");
+    }
+}
+
+/**
+ * Admin deletes a user: the account, the shop and all its products go; whatever is in the wallet moves to the admin wallet with a note saying whose it was.
+ * Orders keep their history (buyers and sellers still need it). Agents (partner sites) and administrators cannot be deleted here.
+ * @return array{0:bool,1:string}
+ */
+function delete_user_account(int $uid): array {
+    $x = row('SELECT * FROM users WHERE id = ?', [$uid]);
+    $admin = admin_user_id();
+    if (!$x) return [false, 'User not found.'];
+    if ($x['role'] === 'admin' || $uid === $admin) return [false, 'Administrators cannot be deleted here.'];
+    if ($x['role'] === 'agent' || val('SELECT 1 FROM agents WHERE user_id = ?', [$uid])) return [false, 'This user is an Agent (partner site). Change the role or remove the agent first.'];
+    $files = [];
+    $pdo = db(); $pdo->beginTransaction();
+    try {
+        $who = trim(($x['name'] ?: '') . ' <' . $x['email'] . '>');
+        $moved = 0.0;
+        q("UPDATE wallet_tx SET status = 'rejected' WHERE user_id = ? AND type = 'withdraw' AND status = 'pending'", [$uid]);   // an unpaid request goes back to the balance
+        $bal = round(wallet_balance($uid), 2);
+        if ($bal > 0) {
+            q("INSERT INTO wallet_tx (user_id, amount, type, status, ref, note) VALUES (?,?, 'adjust', 'done', ?, ?)", [$admin, $bal, 'deleted:' . $uid, mb_substr('From wallet of ' . $who . ' (user #' . $uid . ' deleted)', 0, 255)]);
+            $moved = $bal;
+        }
+        $vids = array_map('intval', array_column(rows('SELECT id FROM vendors WHERE user_id = ?', [$uid]), 'id'));
+        $pids = $vids ? array_map('intval', array_column(rows('SELECT id FROM products WHERE vendor_id IN (' . implode(',', $vids) . ')'), 'id')) : [];
+        if ($pids) foreach (rows('SELECT image, gallery FROM products WHERE id IN (' . implode(',', $pids) . ')') as $p) {
+            $list = [(string)$p['image']]; $g = json_decode((string)$p['gallery'], true); if (is_array($g)) foreach ($g as $i) $list[] = (string)(is_array($i) ? ($i['url'] ?? '') : $i);
+            foreach ($list as $f) if (preg_match('~^/uploads/[A-Za-z0-9._-]+$~', $f)) $files[$f] = 1;
+        }
+        $keep = ['order_items', 'orders'];   // sales history stays (rows keep their numbers; the shop name is copied into them where the page needs it)
+        purge_refs('products', $pids, $keep); purge_refs('vendors', $vids, $keep); purge_refs('users', [$uid], $keep);
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
+        if ($pids) q('DELETE FROM products WHERE id IN (' . implode(',', $pids) . ')');
+        if ($vids) q('DELETE FROM vendors WHERE id IN (' . implode(',', $vids) . ')');
+        q('DELETE FROM users WHERE id = ?', [$uid]);
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        try { $pdo->exec('SET FOREIGN_KEY_CHECKS = 1'); } catch (Throwable $e2) {}
+        return [false, 'Could not delete the user: ' . $e->getMessage()];
+    }
+    foreach (array_keys($files) as $f) @unlink(ROOT . '/public' . $f);
+    if ($moved > 0) notify($admin, 'User ' . $who . ' deleted; ' . money($moved) . ' moved to your wallet.', '/admin/users');
+    return [true, 'User deleted: shop and products removed' . ($moved > 0 ? ', ' . money($moved) . ' moved to the admin wallet' : '') . '.'];
+}
+
 function missing_required(array $type, array $data): array {
     $miss = [];
     foreach ($type['fields'] as $f) if ($f['required'] && trim((string)($data['f' . $f['id']] ?? '')) === '') $miss[] = $f['label'];

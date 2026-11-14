@@ -13,6 +13,8 @@ if (is_post()) {
         flash('Platform commission set to ' . $c . '%.');
     } elseif ($do === 'vendor-status' && in_array($_POST['status'] ?? '', ['active', 'suspended'], true)) {
         q('UPDATE vendors SET status = ? WHERE user_id = ?', [$_POST['status'], $id]); flash('Shop status updated.');
+    } elseif ($do === 'delete' && $id !== (int)$u['id']) {
+        [$ok, $msg] = delete_user_account($id); flash($msg, $ok ? 'ok' : 'bad');
     } elseif ($do === 'payout' && in_array($_POST['res'] ?? '', ['done', 'rejected'], true)) {
         q("UPDATE wallet_tx SET status = ? WHERE id = ? AND type = 'withdraw' AND status = 'pending'", [$_POST['res'], $id]); flash('Withdrawal ' . $_POST['res'] . '.');
     }
@@ -50,7 +52,8 @@ layout('Users manager', function () use ($users, $pay, $u, $demo, $roles, $f, $s
 <?php foreach ($users as $x): ?><tr><td><b><?= e($x['name'] ?: '—') ?></b><?= $x['owner_id'] ? ' <span class="badge info">Staff</span>' : '' ?><div class="muted sm"><?= e($x['email']) ?></div></td>
   <td><form method="post" class="share-box"><?= csrf_field() ?><input type="hidden" name="do" value="role"><input type="hidden" name="id" value="<?= $x['id'] ?>"><select name="role" onchange="this.form.submit()" <?= (int)$x['id'] === (int)$u['id'] || $x['owner_id'] ? 'disabled' : '' ?> style="padding:6px 8px;font-size:13px"><?php foreach (['customer', 'vendor', 'supplier', 'agent', 'admin'] as $r): ?><option value="<?= $r ?>" <?= $x['role'] === $r ? 'selected' : '' ?>><?= role_label($r) ?></option><?php endforeach; ?></select></form></td>
   <td><?= $x['shop_name'] ? e($x['shop_name']) . ' ' . badge($x['vstatus']) : '—' ?></td><td class="num"><?= $x['pc'] ?></td><td class="muted"><?= $x['last_seen'] ? ago($x['last_seen']) : '—' ?></td>
-  <td class="right"><?php if ($x['shop_name'] && (int)$x['id'] !== (int)$u['id']): ?><form method="post" style="display:inline"><?= csrf_field() ?><input type="hidden" name="do" value="vendor-status"><input type="hidden" name="id" value="<?= $x['id'] ?>"><button name="status" value="<?= $x['vstatus'] === 'active' ? 'suspended' : 'active' ?>" class="btn sm"><?= $x['vstatus'] === 'active' ? 'Suspend' : 'Activate' ?></button></form><?php endif; ?></td></tr><?php endforeach; ?>
+  <td class="right"><?php if ($x['shop_name'] && (int)$x['id'] !== (int)$u['id']): ?><form method="post" style="display:inline"><?= csrf_field() ?><input type="hidden" name="do" value="vendor-status"><input type="hidden" name="id" value="<?= $x['id'] ?>"><button name="status" value="<?= $x['vstatus'] === 'active' ? 'suspended' : 'active' ?>" class="btn sm"><?= $x['vstatus'] === 'active' ? 'Suspend' : 'Activate' ?></button></form><?php endif; ?>
+    <?php if ((int)$x['id'] !== (int)$u['id'] && $x['role'] !== 'admin' && $x['role'] !== 'agent'): ?><form method="post" style="display:inline" data-confirm="Delete <?= e($x['name'] ?: $x['email']) ?>? The account, the shop and all products are removed; the wallet balance moves to your wallet. This cannot be undone."><?= csrf_field() ?><input type="hidden" name="do" value="delete"><input type="hidden" name="id" value="<?= $x['id'] ?>"><button class="btn sm danger">Delete</button></form><?php endif; ?></td></tr><?php endforeach; ?>
 <?php if (!$users): ?><tr><td colspan="6" class="center muted" style="padding:30px">No users match.</td></tr><?php endif; ?>
 </tbody></table></section>
 <?php }, ['cabinet' => true]);
