@@ -39,6 +39,7 @@ HTTPS only. JSON bodies (UTF-8). Errors: `{ "error": "code", "message": "…" }`
 | `GET /ping` | Check credentials → `{ ok, agent_id, agency_fee, platform_commission, time }`. |
 | `GET /categories` | Category tree `[{ id, name, children: [{ id, name }] }]` for `category_id` / `category` in products. |
 | `POST /sellers` | Create a managed seller account `{ email, name, shop_name, phone, external_id }` → `201 { seller_id, shop_slug, created: true }`. Linked to the calling Agent. Idempotent by `external_id` (`200 … created:false`). `409 email_taken` if the email already has a Basebase account. The seller receives an email with a "set password" link. |
+| `GET /agent/wallet` | The Agent's own balance (Agency fee) and last transactions, read-only. |
 | `GET /sellers/{seller_id}` | Seller summary + shop URL. |
 | `GET /sellers/{seller_id}/profile` | Payout profile: `{ payout_type, types: { self|company|personal: { label, section, fields: [{ id, label, type, required }] } }, values: { type: { "27": "…" } }, missing_required, shop_name }`. Lets an agent site render and prefill the same form as the Basebase cabinet. |
 | `PUT /sellers/{seller_id}/profile` | Payout profile `{ payout_type: "self"\|"company"\|"personal", fields: { "27": "Иванов", … } }` (field ids from `database/profile-fields.csv`) → `{ payout_type, missing_required: [labels] }`. Needed before the first withdrawal. |

@@ -100,6 +100,11 @@ if (($seg[1] ?? '') !== 'v1') api_err('not_found', 'Unknown API version. Use /ap
 
 if ($res === 'ping' && $method === 'GET') api_out(['ok' => true, 'agent_id' => (int)$ag['id'], 'agency_fee' => (float)$ag['agency_fee'], 'platform_commission' => platform_pct(), 'time' => time()]);
 
+if ($res === 'agent' && $sid === 'wallet' && $method === 'GET') {   // the Agent's own balance (Agency fee credited by sales of its sellers), read-only
+    $uid = (int)$ag['user_id'];
+    $tx = rows('SELECT id, amount, type, status, note, created_at FROM wallet_tx WHERE user_id = ? ORDER BY id DESC LIMIT 50', [$uid]);
+    api_out(['balance' => wallet_balance($uid), 'transactions' => array_map(fn($t) => ['id' => (int)$t['id'], 'amount' => (float)$t['amount'], 'type' => $t['type'], 'status' => $t['status'], 'note' => $t['note'], 'created_at' => date('c', strtotime($t['created_at']))], $tx)]);
+}
 if ($res === 'categories' && $method === 'GET') {
     api_out(['categories' => array_map(fn($c) => ['id' => (int)$c['id'], 'name' => $c['name'], 'children' => array_map(fn($s) => ['id' => (int)$s['id'], 'name' => $s['name']], $c['children'])], categories_tree())]);
 }
