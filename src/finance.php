@@ -81,8 +81,8 @@ function delete_user_account(int $uid): array {
             foreach ($list as $f) if (preg_match('~^/uploads/[A-Za-z0-9._-]+$~', $f)) $files[$f] = 1;
         }
         $keep = ['order_items', 'orders'];   // sales history stays (rows keep their numbers; the shop name is copied into them where the page needs it)
+        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');   // order history may still point at the removed rows; the purge below handles every other dependent itself
         purge_refs('products', $pids, $keep); purge_refs('vendors', $vids, $keep); purge_refs('users', [$uid], $keep);
-        $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
         if ($pids) q('DELETE FROM products WHERE id IN (' . implode(',', $pids) . ')');
         if ($vids) q('DELETE FROM vendors WHERE id IN (' . implode(',', $vids) . ')');
         q('DELETE FROM users WHERE id = ?', [$uid]);
